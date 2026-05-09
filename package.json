@@ -3,6 +3,10 @@
   "version": "1.0.15",
   "description": "hexo pro a backend plugin for hexo",
   "main": "index",
+  "bin": {
+    "hexo-pro-agent": "bin/hexo-pro-agent.js",
+    "hexo-pro-mcp": "bin/hexo-pro-mcp.mjs"
+  },
   "scripts": {
     "start": "npm run dev",
     "dev": "yarn cross-env NODE_ENV=development webpack serve --config ./config/webpack.dev.js",
@@ -10,6 +14,9 @@
     "build:desktop": "yarn build && cd hexo-pro-desktop && yarn copy-core && yarn build:electron",
     "dev:desktop": "yarn build && cd hexo-pro-desktop && yarn copy-core && yarn dev",
     "setup:desktop": "cd hexo-pro-desktop && yarn install && yarn copy-core",
+    "agent:cli": "node bin/hexo-pro-agent.js",
+    "agent:mcp": "node bin/hexo-pro-mcp.mjs",
+    "test:agent": "node --test test/agent-client.test.js test/base-url-resolver.test.js test/mcp-token.test.js test/runtime-manager.test.js",
     "cleanup-db": "node scripts/cleanup-db.js",
     "lint": "eslint ./client/src/",
     "eslint": "eslint --fix ./client/src/ --ext .ts,.tsx,.js,.jsx --cache"
@@ -24,6 +31,7 @@
     "@codemirror/state": "^6.0.0",
     "@codemirror/view": "^6.0.0",
     "@loadable/component": "^5.16.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "antd": "^5.18.3",
     "axios": "^1.7.3",
     "bcrypt-nodejs": "^0.0.3",
@@ -57,7 +65,8 @@
     "remark-gfm": "^4.0.1",
     "thememirror": "^2.0.1",
     "vditor": "^3.11.1",
-    "workerize-loader": "^2.0.2"
+    "workerize-loader": "^2.0.2",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@babel/core": "^7.24.7",
