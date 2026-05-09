@@ -791,7 +791,8 @@ export default function HexoProVditor({ initValue, handleChangeContent, handleUp
             setAiResultStreaming(false)
         } catch (err: any) {
             if (err?.name !== 'AbortError') {
-                message.error(t['ai.error'] || 'AI 响应错误')
+                const errMsg = err?.message ? `: ${err.message}` : ''
+                message.error(`${t['ai.error'] || 'AI 响应错误'}${errMsg}`)
             }
             setSelectionToolbarLoading(false)
             setAiResultStreaming(false)

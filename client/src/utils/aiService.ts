@@ -25,6 +25,27 @@ export interface AIStreamChunk {
     done?: boolean;
 }
 
+function extractAIErrorMessage(errorData: any, fallback: string): string {
+    if (!errorData) return fallback
+    if (typeof errorData === 'string') return errorData
+    if (typeof errorData.msg === 'string' && errorData.msg.trim()) {
+        return errorData.msg.trim()
+    }
+    if (typeof errorData.error?.message === 'string' && errorData.error.message.trim()) {
+        return errorData.error.message.trim()
+    }
+    if (typeof errorData.message === 'string' && errorData.message.trim()) {
+        return errorData.message.trim()
+    }
+    if (typeof errorData.detail?.error?.message === 'string' && errorData.detail.error.message.trim()) {
+        return errorData.detail.error.message.trim()
+    }
+    if (typeof errorData.detail?.message === 'string' && errorData.detail.message.trim()) {
+        return errorData.detail.message.trim()
+    }
+    return fallback
+}
+
 /**
  * AI 流式聊天 - 通过后端代理解决 CORS 问题
  */
@@ -63,12 +84,7 @@ export async function* aiChatStream(
         let errorMsg = `AI API Error: ${response.status}`
         try {
             const errorData = await response.json()
-            if (errorData.msg) {
-                errorMsg = errorData.msg
-            }
-            if (errorData.detail) {
-                errorMsg += ` - ${JSON.stringify(errorData.detail)}`
-            }
+            errorMsg = extractAIErrorMessage(errorData, errorMsg)
         } catch (e) {
             // 忽略 解析错误
         }
@@ -85,7 +101,7 @@ export async function* aiChatStream(
     if (contentType.includes('application/json')) {
         try {
             const errorData = await response.json()
-            throw new Error(errorData.msg || JSON.stringify(errorData))
+            throw new Error(extractAIErrorMessage(errorData, 'AI 请求失败，请检查配置'))
         } catch (e) {
             if (e instanceof Error && e.message !== 'AI API Error: ') {
                 throw e
