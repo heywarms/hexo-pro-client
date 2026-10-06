@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect } from 'react'
 import { Spin, Tabs, message } from 'antd'
-import { ApiOutlined, CloudOutlined, EditOutlined, LinkOutlined, PictureOutlined, QuestionCircleOutlined, ThunderboltOutlined, UserOutlined } from '@ant-design/icons'
+import { ApiOutlined, CloudOutlined, CloudSyncOutlined, EditOutlined, LinkOutlined, PictureOutlined, QuestionCircleOutlined, ThunderboltOutlined, UserOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import styles from './style/index.module.less'
 import useLocale from '../../hooks/useLocale'
@@ -14,6 +14,7 @@ import AISettingsCard from './components/AISettingsCard'
 import StorageSettingsCard from './components/StorageSettingsCard'
 import UpdateSettingsCard from './components/UpdateSettingsCard'
 import MCPSettingsCard from './components/MCPSettingsCard'
+import GitHubSyncSettingsCard from './components/GitHubSyncSettingsCard'
 
 const SettingsPage: React.FC = () => {
   const t = useLocale()
@@ -21,7 +22,7 @@ const SettingsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const [checkTrigger, setCheckTrigger] = React.useState(0)
   const tabParam = searchParams.get('tab')
-  const activeTab = tabParam && ['account', 'link', 'editor', 'display', 'storage', 'ai', 'mcp', 'help'].includes(tabParam) ? tabParam : 'account'
+  const activeTab = tabParam && ['account', 'link', 'editor', 'display', 'storage', 'sync', 'ai', 'mcp', 'help'].includes(tabParam) ? tabParam : 'account'
   // 跳过设置直接进入
   const skipSettings = useCallback(() => {
     // 设置一个标记，表示用户选择了跳过设置
@@ -122,6 +123,16 @@ const SettingsPage: React.FC = () => {
                   </span>
                 ),
                 children: <StorageSettingsCard />,
+              },
+              {
+                key: 'sync',
+                label: (
+                  <span className={styles.tabLabel}>
+                    <CloudSyncOutlined className={styles.tabIcon} />
+                    GitHub 云同步
+                  </span>
+                ),
+                children: <GitHubSyncSettingsCard />,
               },
               {
                 key: 'ai',

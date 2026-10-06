@@ -17,6 +17,7 @@
     "agent:cli": "node bin/hexo-pro-agent.js",
     "agent:mcp": "node bin/hexo-pro-mcp.mjs",
     "test:agent": "node --test test/agent-client.test.js test/base-url-resolver.test.js test/mcp-token.test.js test/runtime-manager.test.js",
+    "test:theme": "node --test test/theme-runtime.test.js",
     "cleanup-db": "node scripts/cleanup-db.js",
     "lint": "eslint ./client/src/",
     "eslint": "eslint --fix ./client/src/ --ext .ts,.tsx,.js,.jsx --cache"
