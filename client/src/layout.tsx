@@ -4,7 +4,7 @@ import Layout, { Content } from 'antd/es/layout/layout'
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './style/layout.module.less'
 import useRoute, { IRoute } from './routes'
-import { AppstoreOutlined, CloudUploadOutlined, CloudSyncOutlined, CodeOutlined, DeleteOutlined, EditOutlined, FileTextOutlined, HomeOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PictureOutlined, SettingOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, CloudUploadOutlined, CloudSyncOutlined, CodeOutlined, DeleteOutlined, FileOutlined, FileTextOutlined, FolderOutlined, HomeOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PictureOutlined, SettingOutlined, SkinOutlined } from '@ant-design/icons'
 import useLocale from './hooks/useLocale'
 import lazyload from './utils/lazyload'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
@@ -23,18 +23,20 @@ const DashboardPage = lazyload(() => import('./pages/dashboard'))
 const PostEditorPage = lazyload(() => import('./pages/content/posts/post'))
 const PageEditorPage = lazyload(() => import('./pages/content/pages/page'))
 
-const getIconFromKey = (key: string) => {
+const getIconFromKey = (key: string): React.ReactNode => {
     switch (key) {
         case 'dashboard':
             return <HomeOutlined />
-        case 'content/posts/blogs':
-            return <EditOutlined />
-        case 'content/posts/drafts':
+        case 'posts':
             return <FileTextOutlined />
-        case 'content/pages':
-            return <AppstoreOutlined />
+        // 文章子项（已发布 / 草稿箱）不单独显示图标，保持层级清晰
+        case 'content/posts/blogs':
+        case 'content/posts/drafts':
+            return undefined
         case 'content/categories':
-            return <AppstoreOutlined />
+            return <FolderOutlined />
+        case 'content/pages':
+            return <FileOutlined />
         case 'content/images':
             return <PictureOutlined />
         case 'content/recycle':
@@ -46,11 +48,11 @@ const getIconFromKey = (key: string) => {
         case 'sync':
             return <CloudSyncOutlined />
         case 'theme-market':
-            return <AppstoreOutlined />
+            return <SkinOutlined />
         case 'settings':
             return <SettingOutlined />
         default:
-            return <HomeOutlined />
+            return <AppstoreOutlined />
     }
 }
 
@@ -147,7 +149,12 @@ export default function PageLayout() {
 
     function reanderRoutes() {
         return function travel(_routes: IRoute[], level = 1): MenuItem[] {
-            return _routes.map((route) => {
+            return _routes.flatMap((route, index): MenuItem[] => [
+                // 分组之间加分割线
+                ...(level === 1 && route.children && index > 0 && _routes[index - 1].children
+                    ? [{ type: 'divider' as const, key: `divider-${route.key}` }]
+                    : []),
+                ((): MenuItem => {
                 if (!route.children) {
                     menuMap.current.set(route.key, { menuItem: true })
                     return {
@@ -155,6 +162,14 @@ export default function PageLayout() {
                         label: locale[route.name],
                         icon: getIconFromKey(route.key),
                         children: undefined
+                    }
+                } else if (level === 1) {
+                    // 顶层分组（内容管理 / 系统管理）渲染为带标题的分组
+                    return {
+                        type: 'group' as const,
+                        key: route.key,
+                        label: locale[route.name],
+                        children: travel(route.children, level + 1)
                     }
                 } else {
                     menuMap.current.set(route.key, { subMenu: true })
@@ -165,7 +180,8 @@ export default function PageLayout() {
                         children: travel(route.children, level + 1)
                     }
                 }
-            })
+                })(),
+            ])
         }
     }
 
@@ -271,6 +287,8 @@ export default function PageLayout() {
                         selectedKeys={selectedKeys}
                         onClick={onClickItem}
                         mode={"inline"}
+                        defaultOpenKeys={['posts']}
+                        className={styles['side-menu']}
                         items={reanderRoutes()(routes, 1)}
                     >
                     </Menu>

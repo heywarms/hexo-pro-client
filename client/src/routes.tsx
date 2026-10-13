@@ -69,12 +69,11 @@ export default function useRoute(): [IRoute[], string] {
               name: 'menu.posts.drafts',
               key: 'content/posts/drafts',
             },
-            {
-              name: 'menu.categories',
-              key: 'content/categories',
-            }
-
           ]
+        },
+        {
+          name: 'menu.categories',
+          key: 'content/categories',
         },
         {
           name: 'menu.pages',

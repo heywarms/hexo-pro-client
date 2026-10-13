@@ -1,4 +1,5 @@
 import React, { useContext, useRef, useState, useEffect } from "react"
+import { NEW_POST_EVENT } from "@/utils/newPostEvent"
 import _ from 'lodash'
 import styles from './style/index.module.less'
 import Logo from '@/assets/logo3.svg'
@@ -306,6 +307,13 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
         return () => {
             searchBlog.cancel()
         }
+    }, [])
+
+    // 内容页“新建文章”按钮通过事件复用这里的新建流程
+    useEffect(() => {
+        const onRequestNewPost = () => handleCreateBlog({ key: '1' } as any)
+        window.addEventListener(NEW_POST_EVENT, onRequestNewPost)
+        return () => window.removeEventListener(NEW_POST_EVENT, onRequestNewPost)
     }, [])
 
     useEffect(() => {

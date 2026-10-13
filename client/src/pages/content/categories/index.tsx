@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Card, Col, Empty, List, Row, Table, Tag, Typography, message } from 'antd'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Card, Col, Empty, List, Pagination, Row, Spin, Tag, Typography, message, theme as antdTheme } from 'antd'
 import service from '@/utils/api'
 import useLocale from '@/hooks/useLocale'
 import { useNavigate } from 'react-router-dom'
 import { documentRouteId } from '@/utils/documentIdentity'
 import styles from './style/index.module.less'
+import ArticleRow from '../components/ArticleRow/ArticleRow'
 
 const { Text } = Typography
 
@@ -22,10 +23,12 @@ type CategoryPostItem = {
   date: string
   updated: string
   isDraft: boolean
+  cover?: string
 }
 
 export default function CategoriesPage() {
   const t = useLocale()
+  const { token } = antdTheme.useToken()
   const navigate = useNavigate()
 
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -87,50 +90,11 @@ export default function CategoriesPage() {
     fetchCategoryPosts(selectedCategory, currentPage)
   }, [currentPage, fetchCategoryPosts, selectedCategory])
 
-  const columns = useMemo(() => {
-    return [
-      {
-        title: t['content.categories.column.title'] || '标题',
-        dataIndex: 'title',
-        key: 'title',
-        ellipsis: true,
-        render: (_: string, record: CategoryPostItem) => (
-          <Button
-            type="link"
-            className={styles.titleLink}
-            onClick={() => navigate(`/post/${documentRouteId(record)}`)}
-          >
-            {record.title}
-          </Button>
-        ),
-      },
-      {
-        title: t['content.categories.column.status'] || '状态',
-        dataIndex: 'isDraft',
-        key: 'isDraft',
-        width: 110,
-        render: (isDraft: boolean) => (
-          <Tag color={isDraft ? 'default' : 'blue'}>
-            {isDraft ? (t['content.categories.status.draft'] || '草稿') : (t['content.categories.status.published'] || '已发布')}
-          </Tag>
-        ),
-      },
-      {
-        title: t['content.categories.column.date'] || '日期',
-        dataIndex: 'date',
-        key: 'date',
-        width: 188,
-        render: (date: string) => <Text className={styles.dateText}>{date || '-'}</Text>,
-      },
-      {
-        title: t['content.categories.column.updated'] || '更新',
-        dataIndex: 'updated',
-        key: 'updated',
-        width: 188,
-        render: (updated: string) => <Text className={styles.dateText}>{updated || '-'}</Text>,
-      },
-    ]
-  }, [navigate, t])
+  const shortTime = (value?: string) => {
+    if (!value) return '-'
+    const m = String(value).match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/)
+    return m ? `${m[1]} ${m[2]}` : String(value)
+  }
 
   return (
     <Row gutter={[16, 16]}>
@@ -150,14 +114,15 @@ export default function CategoriesPage() {
                   style={{
                     cursor: 'pointer',
                     padding: '12px 16px',
-                    backgroundColor: item.name === selectedCategory ? 'rgba(24, 144, 255, 0.08)' : 'transparent',
+                    backgroundColor: item.name === selectedCategory ? token.controlItemBgActive : 'transparent',
+                    borderInlineStart: `3px solid ${item.name === selectedCategory ? token.colorPrimary : 'transparent'}`,
                   }}
                   onClick={() => {
                     setSelectedCategory(item.name)
                     setCurrentPage(1)
                   }}
                 >
-                  <Text strong={item.name === selectedCategory}>{item.name}</Text>
+                  <Text strong={item.name === selectedCategory} style={item.name === selectedCategory ? { color: token.colorPrimary } : undefined}>{item.name}</Text>
                   <Tag>{item.count}</Tag>
                 </List.Item>
               )}
@@ -176,21 +141,49 @@ export default function CategoriesPage() {
           {!selectedCategory ? (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t['content.categories.selectHint'] || '请选择一个分类'} />
           ) : (
-            <Table
-              className={styles.categoryPostsTable}
-              rowKey={record => record.documentId || record.permalink}
-              loading={loadingPosts}
-              columns={columns}
-              dataSource={posts}
-              tableLayout="fixed"
-              scroll={{ x: 860 }}
-              pagination={{
-                current: currentPage,
-                pageSize,
-                total,
-                onChange: (page) => setCurrentPage(page),
-              }}
-            />
+            <>
+            <Spin spinning={loadingPosts}>
+              {posts.length === 0 && !loadingPosts ? (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t['content.articleList.empty'] || '暂无文章'} />
+              ) : (
+                <div className={styles.rowList}>
+                  {posts.map((record) => (
+                    <ArticleRow
+                      key={record.documentId || record.permalink}
+                      title={record.title}
+                      cover={record.cover}
+                      onClick={() => navigate(`/post/${documentRouteId(record)}`)}
+                      titleExtra={
+                        <Tag color={record.isDraft ? 'default' : 'processing'} bordered={false}>
+                          {record.isDraft ? (t['content.categories.status.draft'] || '草稿') : (t['content.categories.status.published'] || '已发布')}
+                        </Tag>
+                      }
+                      meta={`${t['content.articleList.row.updatedAt'] || '更新于'} ${shortTime(record.updated || record.date)}`}
+                      actions={
+                        <Typography.Link onClick={() => navigate(`/post/${documentRouteId(record)}`)}>
+                          {t['content.articleList.btn.edit'] || '编辑'}
+                        </Typography.Link>
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </Spin>
+            {total > 0 && (
+              <div className={styles.footer}>
+                <Text type="secondary">
+                  {(t['content.articleList.footer.total'] || '共 {count} 篇文章').replace('{count}', String(total))}
+                </Text>
+                <Pagination
+                  current={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                  showSizeChanger={false}
+                  onChange={(page) => setCurrentPage(page)}
+                />
+              </div>
+            )}
+          </>
           )}
         </Card>
       </Col>
