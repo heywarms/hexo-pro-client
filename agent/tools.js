@@ -26,13 +26,14 @@ const toolDefinitions = [
   },
   {
     name: 'hexo_get_post',
-    description: 'Get one post by its permalink.',
+    description: 'Get one post by its stable documentId or permalink.',
     inputSchema: {
       type: 'object',
       properties: {
-        permalink: { type: 'string', description: 'The Hexo post permalink.' }
+        documentId: { type: 'string', description: 'The stable documentId returned by list/search. Prefer this over the public URL.' },
+        permalink: { type: 'string', description: 'The Hexo post permalink, for compatibility.' }
       },
-      required: ['permalink']
+      anyOf: [{ required: ['documentId'] }, { required: ['permalink'] }]
     }
   },
   {
@@ -51,11 +52,12 @@ const toolDefinitions = [
   },
   {
     name: 'hexo_update_post',
-    description: 'Update an existing post by permalink.',
+    description: 'Update an existing post by stable documentId or permalink.',
     inputSchema: {
       type: 'object',
       properties: {
-        permalink: { type: 'string', description: 'The Hexo post permalink.' },
+        documentId: { type: 'string', description: 'The stable documentId returned by list/search. Prefer this over the public URL.' },
+        permalink: { type: 'string', description: 'The Hexo post permalink, for compatibility.' },
         title: { type: 'string', description: 'New title.' },
         content: { type: 'string', description: 'New Markdown content.' },
         tags: { type: 'array', items: { type: 'string' }, description: 'Replacement tag list.' },
@@ -63,29 +65,31 @@ const toolDefinitions = [
         frontMatter: { type: 'object', description: 'Replacement custom front matter fields.' },
         rawUpdate: { type: 'object', description: 'Advanced Hexo Pro update object.' }
       },
-      required: ['permalink']
+      anyOf: [{ required: ['documentId'] }, { required: ['permalink'] }]
     }
   },
   {
     name: 'hexo_publish_post',
-    description: 'Move a draft post into published posts by permalink.',
+    description: 'Move a draft post into published posts by stable documentId or permalink.',
     inputSchema: {
       type: 'object',
       properties: {
-        permalink: { type: 'string', description: 'The Hexo post permalink.' }
+        documentId: { type: 'string', description: 'The stable documentId returned by list/search. Prefer this over the public URL.' },
+        permalink: { type: 'string', description: 'The Hexo post permalink, for compatibility.' }
       },
-      required: ['permalink']
+      anyOf: [{ required: ['documentId'] }, { required: ['permalink'] }]
     }
   },
   {
     name: 'hexo_unpublish_post',
-    description: 'Move a published post back to drafts by permalink.',
+    description: 'Move a published post back to drafts by stable documentId or permalink.',
     inputSchema: {
       type: 'object',
       properties: {
-        permalink: { type: 'string', description: 'The Hexo post permalink.' }
+        documentId: { type: 'string', description: 'The stable documentId returned by list/search. Prefer this over the public URL.' },
+        permalink: { type: 'string', description: 'The Hexo post permalink, for compatibility.' }
       },
-      required: ['permalink']
+      anyOf: [{ required: ['documentId'] }, { required: ['permalink'] }]
     }
   },
   {

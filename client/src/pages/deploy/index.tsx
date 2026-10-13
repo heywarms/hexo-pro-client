@@ -36,12 +36,14 @@ import { service } from '@/utils/api'
 import useLocale from '@/hooks/useLocale'
 import { useLocalStorageState } from '@/pages/settings/hooks/useLocalStorageState'
 import styles from './style.module.less'
+import { useNavigate } from 'react-router-dom'
 
 const { Paragraph, Text } = Typography
 
 type DeployTarget = 'github' | 'cloudflare-pages' | 'edgeone-pages'
 
 const DeployPage: React.FC = () => {
+  const navigate = useNavigate()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [deployLoading, setDeployLoading] = useState<DeployTarget | 'all' | null>(null)
@@ -78,7 +80,6 @@ const DeployPage: React.FC = () => {
   })
   const pollingRef = useRef<NodeJS.Timeout | null>(null)
   const saveDebounceRef = useRef<NodeJS.Timeout | null>(null)
-  const skipNextSaveRef = useRef(false)
   const githubEnabledRef = useRef(githubEnabled)
   const cloudflareEnabledRef = useRef(cloudflareEnabled)
   const edgeoneEnabledRef = useRef(edgeoneEnabled)
@@ -118,17 +119,12 @@ const DeployPage: React.FC = () => {
   }, [saveConfig])
 
   const onFormValuesChange = useCallback(() => {
-    if (skipNextSaveRef.current) {
-      skipNextSaveRef.current = false
-      return
-    }
     debouncedSave()
   }, [debouncedSave])
 
   const fetchDeployConfig = async () => {
     try {
       setLoading(true)
-      skipNextSaveRef.current = true
       const res = await service.get('/hexopro/api/deploy/config')
       const data = res.data
       form.setFieldsValue(data)
@@ -177,11 +173,13 @@ const DeployPage: React.FC = () => {
           ['edgeone', 'apiToken'],
         )
       }
-      const values = await form.validateFields(fieldsToValidate).catch(() => null)
-      if (!values) {
+      const valid = await form.validateFields(fieldsToValidate).catch(() => null)
+      if (!valid) {
         setDeployLoading(null)
         return
       }
+      const values = form.getFieldsValue(true)
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
 
       const enabledPlatforms: DeployTarget[] = []
       if (githubEnabled) enabledPlatforms.push('github')
@@ -592,6 +590,14 @@ const DeployPage: React.FC = () => {
 
   return (
     <div className={styles.deployContainer}>
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="部署网站"
+        description="在这里将网站发布到 GitHub Pages、Cloudflare Pages 或 EdgeOne Pages。手机与电脑之间同步文章、主题和配置，请使用云同步。"
+        action={<Button onClick={() => navigate('/sync')}>前往云同步</Button>}
+      />
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={16}>
           <Card bodyStyle={{ paddingTop: 0 }}>

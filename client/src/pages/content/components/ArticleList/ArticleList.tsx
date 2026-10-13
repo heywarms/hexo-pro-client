@@ -1,3 +1,4 @@
+import { documentRouteId } from '@/utils/documentIdentity'
 import { Button, Image, Popconfirm, Space, message, Row, Col, Card, Pagination, Dropdown, Typography, Modal, Form, Input, Spin, Empty, Select } from "antd"
 import { SendOutlined, RollbackOutlined, PictureOutlined } from "@ant-design/icons"
 import React, { useContext, useEffect, useState } from "react"
@@ -84,13 +85,13 @@ function ArticleList({ published, isPage = false, showPublishStatus = true }) {
         try {
             // 执行删除操作
             const deleteApiPath = isPage ? '/hexopro/api/pages' : '/hexopro/api/posts'
-            await service.get(`${deleteApiPath}/${base64Encode(item.permalink)}/remove`)
+            await service.get(`${deleteApiPath}/${documentRouteId(item)}/remove`)
 
             // 重新查询数据并更新列表
             const listApiPath = isPage ? '/hexopro/api/pages/list' : '/hexopro/api/posts/list'
             const res = await service.get(listApiPath, { params: { published: published, page: currentPage, pageSize: pageSize } })
             const result = res.data.data.map((obj, i) => {
-                return { _id: obj._id, title: obj.title, cover: obj.cover, date: obj.date, permalink: obj.permalink, updated: obj.updated, key: i + 1 }
+                return { _id: obj._id, documentId: obj.documentId, title: obj.title, cover: obj.cover, date: obj.date, permalink: obj.permalink, updated: obj.updated, key: i + 1 }
             })
 
             // 更新列表
@@ -127,7 +128,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true }) {
             url = '/hexopro/api/updatePageFrontMatter'
         }
         service.post(url, {
-            permalink: base64Encode(currentPost.permalink),
+            permalink: documentRouteId(currentPost),
             key: form.getFieldValue('key'),
             value: form.getFieldValue('value')
         }).then(res => {
@@ -194,7 +195,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true }) {
     const handlePublish = async (item, e) => {
         e.stopPropagation()
         try {
-            const publishApiPath = '/hexopro/api/posts/' + base64Encode(item.permalink) + '/publish'
+            const publishApiPath = '/hexopro/api/posts/' + documentRouteId(item) + '/publish'
             const res = await service.get(publishApiPath)
             if (res.status === 200) {
                 message.success(t['content.articleList.publish.success'] || '文章发布成功')
@@ -208,7 +209,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true }) {
     const handleUnpublish = async (item, e) => {
         e.stopPropagation()
         try {
-            const unpublishApiPath = '/hexopro/api/posts/' + base64Encode(item.permalink) + '/unpublish'
+            const unpublishApiPath = '/hexopro/api/posts/' + documentRouteId(item) + '/unpublish'
             const res = await service.get(unpublishApiPath)
             if (res.status === 200) {
                 message.success(t['content.articleList.unpublish.success'] || '文章已撤回到草稿箱')
@@ -226,16 +227,13 @@ function ArticleList({ published, isPage = false, showPublishStatus = true }) {
             .then(res => {
                 const result = res.data.data.map((obj, i) => {
                     setTotal(res.data.total)
-                    return { _id: obj._id, slug: obj.slug, title: obj.title, cover: obj.cover, date: obj.date, permalink: obj.permalink, source: obj.source, updated: obj.updated, key: i + 1, isDraft: obj.isDraft }
+                    return { _id: obj._id, documentId: obj.documentId, slug: obj.slug, title: obj.title, cover: obj.cover, date: obj.date, permalink: obj.permalink, source: obj.source, updated: obj.updated, key: i + 1, isDraft: obj.isDraft }
                 })
                 setPostList(result)
             })
     }
 
-    // 添加 Base64 编码函数
-    function base64Encode(str) {
-        return btoa(unescape(encodeURIComponent(str)))
-    }
+
 
     // 当设备类型或封面显示设置变化时，更新pageSize
     useEffect(() => {
@@ -262,7 +260,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true }) {
         }}>
             <Row gutter={[16, 16]}>
                 {postList.map(item => (
-                    <Col key={item._id} 
+                    <Col key={item.documentId || item._id}
                          xs={showCover ? 24 : 12} 
                          sm={showCover ? 12 : 12} 
                          md={showCover ? 8 : 6} 
@@ -309,7 +307,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true }) {
                                 padding: showCover ? '24px' : '16px',
                                 paddingTop: showCover ? '24px' : '12px'
                             }}
-                            onClick={() => !isPage ? navigate(`/post/${base64Encode(item.permalink)}`) : navigate(`/page/${base64Encode(item.permalink)}`)}
+                            onClick={() => !isPage ? navigate(`/post/${documentRouteId(item)}`) : navigate(`/page/${documentRouteId(item)}`)}
                         >
                             <div
                                 className={`${styles['card-action-group']} ${
@@ -368,7 +366,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true }) {
                                                     {
                                                         key: 'edit',
                                                         label: (
-                                                            <Link to={isPage ? `/page/${base64Encode(item.permalink)}` : `/post/${base64Encode(item.permalink)}`} onClick={(event) => event.stopPropagation()}>
+                                                            <Link to={isPage ? `/page/${documentRouteId(item)}` : `/post/${documentRouteId(item)}`} onClick={(event) => event.stopPropagation()}>
                                                                 {t['content.articleList.btn.edit']}
                                                             </Link>
                                                         )

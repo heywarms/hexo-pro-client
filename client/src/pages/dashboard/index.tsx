@@ -40,7 +40,7 @@ import { GlobalContext } from '@/context'
 import useLocale from '@/hooks/useLocale'
 import useDeviceDetect from '@/hooks/useDeviceDetect'
 import service from '@/utils/api'
-import { base64Encode } from '@/utils/encodeUtils'
+import { documentRouteId } from '@/utils/documentIdentity'
 import styles from './style/index.module.less'
 import { Column, Pie, WordCloud } from '@ant-design/charts'
 
@@ -52,6 +52,7 @@ type TagItem = { name: string; count: number; path: string }
 type RecentPostItem = {
   title: string
   permalink: string
+  documentId?: string
   date?: string
   updated?: string
   isDraft?: boolean
@@ -152,7 +153,7 @@ const Dashboard: React.FC = () => {
     const res = await service.post('/hexopro/api/posts/new', { title: finalTitle, categories })
     if (res.data?.permalink) {
       message.success(t['dashboard.success.createPost'])
-      navigate(`/post/${base64Encode(res.data.permalink)}`)
+      navigate(`/post/${documentRouteId(res.data)}`)
     }
   }
 
@@ -586,7 +587,7 @@ const Dashboard: React.FC = () => {
               renderItem={article => (
                 <List.Item
                   className={styles.recentListItem}
-                  onClick={() => navigate(`/post/${base64Encode(article.permalink)}`)}
+                  onClick={() => navigate(`/post/${documentRouteId(article)}`)}
                   actions={[
                     <Button type="link" size="small" icon={<EditOutlined />} key={`edit-${article.permalink}`}>
                       {t['dashboard.todo.editTooltip']}

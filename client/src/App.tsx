@@ -28,7 +28,7 @@ const DesktopSettingsBridge: React.FC = () => {
             return
         }
 
-        const unsubscribe = electronAPI.onOpenSettings((payload = {}) => {
+        const unsubscribe = electronAPI.onOpenSettings((payload: { tab?: unknown, action?: unknown } = {}) => {
             const params = new URLSearchParams()
             if (payload?.tab) {
                 params.set('tab', String(payload.tab))
@@ -77,7 +77,7 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
                 description: (t['settings.update.toast.availableDesc'] || '检测到新版本 {version}，是否马上更新？').replace('{version}', version || ''),
                 btn: (
                     <Space>
-                        <Button size="small" onClick={() => notification.close(notificationKey)}>
+                        <Button size="small" onClick={() => notification.destroy(notificationKey)}>
                             {t['settings.update.toast.later'] || '稍后'}
                         </Button>
                         <Button
@@ -91,7 +91,7 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
                                 } catch (error: any) {
                                     message.error(error?.message || t['settings.update.toast.downloadFailed'] || '下载更新失败')
                                 } finally {
-                                    notification.close(notificationKey)
+                                    notification.destroy(notificationKey)
                                 }
                             }}
                         >
@@ -112,7 +112,7 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
                 description: (t['settings.update.toast.downloadedDesc'] || '新版本 {version} 已下载完成，是否现在重启安装？').replace('{version}', version || ''),
                 btn: (
                     <Space>
-                        <Button size="small" onClick={() => notification.close(notificationKey)}>
+                        <Button size="small" onClick={() => notification.destroy(notificationKey)}>
                             {t['settings.update.toast.later'] || '稍后'}
                         </Button>
                         <Button
@@ -125,7 +125,7 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
                                 } catch (error: any) {
                                     message.error(error?.message || t['settings.update.toast.installFailed'] || '安装更新失败')
                                 } finally {
-                                    notification.close(notificationKey)
+                                    notification.destroy(notificationKey)
                                 }
                             }}
                         >

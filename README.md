@@ -1,6 +1,8 @@
 # Hexo Pro Client
 
-这是 Hexo Pro 项目的主仓库，整合了前端、后端和桌面客户端。
+这是 Hexo Pro 项目的主仓库，整合了前端、后端、桌面客户端和手机 App。
+
+手机 App 支持 Android 和 iOS，离线写作并直接通过 GitHub 同步源文件，不需要运行自己的后端服务。安装和连接步骤见 [手机 App 指南](docs/MOBILE_APP.md)。
 
 ## 📁 项目结构
 
@@ -9,6 +11,7 @@ hexo-pro-client/           # 主项目（React前端）
 ├── hexo-pro/             # 子模块：Hexo插件后端
 ├── hexo-pro-desktop/     # 子模块：桌面端应用
 ├── client/               # React前端源码
+├── mobile/               # Android / iOS 原生工程
 ├── config/               # Webpack配置
 ├── scripts/              # 构建脚本
 └── BUILD_GUIDE.md        # 详细构建指南
@@ -147,3 +150,13 @@ yarn build:desktop
 ## �� 许可证
 
 MIT License
+
+## 安全与保存更新
+
+后台业务接口始终验证登录会话，首次注册后立即生效；AI 服务地址变更需重新填写访问凭据。旧账号在成功登录时将数据库内密码和安全答案迁移为加盐散列，改密后旧会话失效。原有 Hexo 配置文件中的账号信息不会被自动改写。
+
+桌面凭据使用系统安全存储；旧明文/XOR 缓存会移除，安全存储不可用时要求重新登录，不回退到明文。桌面登录持久化通过受验证的 IPC，旧 HTTP 写令牌接口已停用。
+
+编辑器支持本地失败稿件恢复、版本冲突比较和按文档串行保存，操作细节见 [编辑器说明](docs/EDITOR.md)。手机启动错误页支持恢复备份。
+
+使用 `yarn verify` 执行类型检查与全量回归测试；`yarn build` 会先执行类型检查。更新桌面运行时前先构建前端，再运行 `yarn copy-core`。

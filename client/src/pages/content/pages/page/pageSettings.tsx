@@ -48,12 +48,12 @@ export function PageSettings({ visible, setVisible, pageMeta, setPageMeta, handl
                 setFrontMatterStyles(originFmStyles)
                 setVisible(false)
             }}
-            onOk={() => {
+            onOk={async () => {
                 if (!isPathValid(pageMeta.source)) {
                     message.error(t['pageSettings.input.path.error'])
                 } else {
+                    await handleChange({ frontMatter: pageMeta.frontMatter, frontMatterStyles, source: pageMeta.source })
                     setVisible(false)
-                    handleChange({ frontMatter: pageMeta.frontMatter, frontMatterStyles, source: pageMeta.source })
                 }
             }}
             afterOpenChange={() => {

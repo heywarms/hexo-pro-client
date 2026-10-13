@@ -1,0 +1,13 @@
+{
+  "appId": "app.hexopro.mobile",
+  "appName": "Hexo Pro",
+  "webDir": "mobile/dist",
+  "backgroundColor": "#faf9f6",
+  "loggingBehavior": "none",
+  "android": { "path": "mobile/android", "allowMixedContent": false, "minWebViewVersion": 109 },
+  "ios": { "path": "mobile/ios", "contentInset": "never", "preferredContentMode": "mobile", "zoomEnabled": true },
+  "plugins": {
+    "Keyboard": { "resize": "native" },
+    "SystemBars": { "insetsHandling": "css", "initialViewportFitValueHint": "cover" }
+  }
+}

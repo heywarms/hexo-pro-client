@@ -106,6 +106,10 @@ export default function useRoute(): [IRoute[], string] {
           key: 'deploy',
         },
         {
+          name: 'menu.sync',
+          key: 'sync',
+        },
+        {
           name: 'menu.themeMarket',
           key: 'theme-market',
         },
@@ -129,6 +133,6 @@ export default function useRoute(): [IRoute[], string] {
   }, [finalRoutes])
 
 
-  return [routes, defaultRoute]
+  return [finalRoutes, defaultRoute]
 }
 

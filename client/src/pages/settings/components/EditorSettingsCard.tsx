@@ -9,7 +9,7 @@ const { Text } = Typography
 
 const EditorSettingsCard: React.FC = () => {
   const t = useLocale()
-  const [editorMode, setEditorMode] = useLocalStorageState<string>('hexoProEditorMode', 'ir', {
+  const [editorMode, setEditorMode] = useLocalStorageState<string>('hexoProEditorEngine', 'blocks', {
     serialize: (v) => v,
     deserialize: (raw) => raw,
   })
@@ -30,22 +30,21 @@ const EditorSettingsCard: React.FC = () => {
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ marginBottom: 8 }}>
-          <Text strong>{t['settings.editorMode']}</Text>
+          <Text strong>默认编辑方式</Text>
           <br />
           <Text type="secondary" style={{ fontSize: '12px' }}>
-            {t['settings.editorModeDescription']}
+            块编辑支持斜杠菜单、拖动排序和选中文字格式化；源码编辑保留全部 Markdown 语法。
           </Text>
         </div>
         <Select style={{ width: '100%' }} value={editorMode} onChange={onChange} placeholder={t['settings.editorModeSelect']}>
-          <Option value="ir">{t['settings.editorModeIR']}</Option>
-          <Option value="wysiwyg">{t['settings.editorModeWYSIWYG']}</Option>
-          <Option value="sv">{t['settings.editorModeSV']}</Option>
+          <Option value="blocks">块编辑（推荐）</Option>
+          <Option value="source">Markdown 源码</Option>
         </Select>
       </div>
 
       <div style={{ padding: '12px 16px', backgroundColor: '#f6f8fa', borderRadius: '6px', border: '1px solid #e1e4e8' }}>
         <Text type="secondary" style={{ fontSize: '12px' }}>
-          <span dangerouslySetInnerHTML={{ __html: t['settings.editorModeHelp'] }} />
+          文章仍保存为 Markdown。包含 Hexo 标签、HTML 等特殊内容时，编辑器会自动保留源码模式。写作界面的“主题预览”可查看当前主题下的文章效果，草稿也可预览。
         </Text>
       </div>
     </Card>
@@ -53,4 +52,3 @@ const EditorSettingsCard: React.FC = () => {
 }
 
 export default EditorSettingsCard
-

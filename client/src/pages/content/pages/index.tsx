@@ -1,3 +1,4 @@
+import { documentRouteId } from '@/utils/documentIdentity'
 import React, { useEffect, useRef, useState } from 'react'
 import service from '@/utils/api'
 import { Link } from 'react-router-dom'
@@ -34,12 +35,12 @@ export default function Pages() {
     const removeSource = async (item) => {
         try {
             // 执行删除操作
-            await service.get('/hexopro/api/pages/' + item._id + '/remove')
+            await service.get('/hexopro/api/pages/' + documentRouteId(item) + '/remove')
 
             // 重新查询数据并更新列表
             const res = await service.get('/hexopro/api/pages/list?deleted=' + false)
             const result = res.data.map((obj, i) => {
-                return { _id: obj._id, title: obj.title, cover: obj.cover, date: obj.date, permalink: obj.permalink, updated: obj.updated, key: i + 1 }
+                return { _id: obj._id, documentId: obj.documentId, title: obj.title, cover: obj.cover, date: obj.date, permalink: obj.permalink, updated: obj.updated, key: i + 1 }
             })
 
             // 更新列表
@@ -56,7 +57,7 @@ export default function Pages() {
         service.get('/hexopro/api/pages/list?deleted=' + false)
             .then(res => {
                 const result = res.data.data.map((obj, i) => {
-                    return { _id: obj._id, title: obj.title, cover: obj.cover, date: obj.date, permalink: obj.permalink, updated: obj.updated, key: i + 1 }
+                    return { _id: obj._id, documentId: obj.documentId, title: obj.title, cover: obj.cover, date: obj.date, permalink: obj.permalink, updated: obj.updated, key: i + 1 }
                 })
                 setPageList(result)
             })

@@ -64,14 +64,14 @@ export function PostSettings({ visible, setVisible, tagCatMeta, setTagCatMeta, p
                 setPostMeta({ ...postMeta, tags: originTags, categories: originCats, frontMatter: originFms })
                 setFrontMatterStyles(originFmStyles)
             }}
-            onOk={() => {
-                setVisible(false)
-                handleChange({
+            onOk={async () => {
+                await handleChange({
                     tags: postMeta.tags,
                     categories: postMeta.categories,
                     frontMatter: postMeta.frontMatter,
                     frontMatterStyles
                 })
+                setVisible(false)
             }}
             afterOpenChange={() => {
                 setOriginTags(postMeta.tags)

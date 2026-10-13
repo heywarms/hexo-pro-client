@@ -3,7 +3,7 @@ import { Button, Card, Col, Empty, List, Row, Table, Tag, Typography, message } 
 import service from '@/utils/api'
 import useLocale from '@/hooks/useLocale'
 import { useNavigate } from 'react-router-dom'
-import { base64Encode } from '@/utils/encodeUtils'
+import { documentRouteId } from '@/utils/documentIdentity'
 import styles from './style/index.module.less'
 
 const { Text } = Typography
@@ -18,6 +18,7 @@ type CategoryPostItem = {
   _id: string
   title: string
   permalink: string
+  documentId?: string
   date: string
   updated: string
   isDraft: boolean
@@ -97,7 +98,7 @@ export default function CategoriesPage() {
           <Button
             type="link"
             className={styles.titleLink}
-            onClick={() => navigate(`/post/${base64Encode(record.permalink)}`)}
+            onClick={() => navigate(`/post/${documentRouteId(record)}`)}
           >
             {record.title}
           </Button>
@@ -177,7 +178,7 @@ export default function CategoriesPage() {
           ) : (
             <Table
               className={styles.categoryPostsTable}
-              rowKey="permalink"
+              rowKey={record => record.documentId || record.permalink}
               loading={loadingPosts}
               columns={columns}
               dataSource={posts}

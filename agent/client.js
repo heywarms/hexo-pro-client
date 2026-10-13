@@ -15,6 +15,10 @@ function encodePermalink(permalink) {
   return Buffer.from(String(permalink), 'utf8').toString('base64');
 }
 
+function encodeDocumentReference(input) {
+  return encodeURIComponent(input.documentId || encodePermalink(input.permalink));
+}
+
 function getFetch(fetchImpl) {
   if (fetchImpl) return fetchImpl;
   if (globalThis.fetch) return globalThis.fetch.bind(globalThis);
@@ -130,7 +134,7 @@ class HexoProAgentClient {
 
   async getPost(input) {
     if (this.mcpToken) return this.mcpRequest('/posts/get', input);
-    return this.request('GET', `/posts/${encodePermalink(input.permalink)}`);
+    return this.request('GET', `/posts/${encodeDocumentReference(input)}`);
   }
 
   async createDraft(input) {
@@ -144,7 +148,7 @@ class HexoProAgentClient {
 
     const post = await this.request('POST', '/posts/new', body);
     if (input.content) {
-      await this.updatePost(post.permalink, { _content: input.content });
+      await this.updatePost({ documentId: post.documentId, permalink: post.permalink, content: input.content });
     }
     return post;
   }
@@ -166,17 +170,17 @@ class HexoProAgentClient {
       Object.assign(update, input.rawUpdate);
     }
 
-    return this.request('POST', `/post/update/${encodePermalink(input.permalink)}`, update);
+    return this.request('POST', `/post/update/${encodeDocumentReference(input)}`, update);
   }
 
   async publishPost(input) {
     if (this.mcpToken) return this.mcpRequest('/posts/publish', input);
-    return this.request('POST', `/posts/${encodePermalink(input.permalink)}/publish`, {});
+    return this.request('POST', `/posts/${encodeDocumentReference(input)}/publish`, {});
   }
 
   async unpublishPost(input) {
     if (this.mcpToken) return this.mcpRequest('/posts/unpublish', input);
-    return this.request('POST', `/posts/${encodePermalink(input.permalink)}/unpublish`, {});
+    return this.request('POST', `/posts/${encodeDocumentReference(input)}/unpublish`, {});
   }
 
   async getDeployStatus() {

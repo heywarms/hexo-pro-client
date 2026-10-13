@@ -4,7 +4,7 @@ import Layout, { Content } from 'antd/es/layout/layout'
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './style/layout.module.less'
 import useRoute, { IRoute } from './routes'
-import { AppstoreOutlined, CloudUploadOutlined, CodeOutlined, DeleteOutlined, EditOutlined, FileTextOutlined, HomeOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PictureOutlined, SettingOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, CloudUploadOutlined, CloudSyncOutlined, CodeOutlined, DeleteOutlined, EditOutlined, FileTextOutlined, HomeOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PictureOutlined, SettingOutlined } from '@ant-design/icons'
 import useLocale from './hooks/useLocale'
 import lazyload from './utils/lazyload'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
@@ -18,6 +18,10 @@ import { GlobalContext } from './context'
 import service from './utils/api'
 
 type MenuItem = Required<MenuProps>['items'][number];
+
+const DashboardPage = lazyload(() => import('./pages/dashboard'))
+const PostEditorPage = lazyload(() => import('./pages/content/posts/post'))
+const PageEditorPage = lazyload(() => import('./pages/content/pages/page'))
 
 const getIconFromKey = (key: string) => {
     switch (key) {
@@ -39,6 +43,8 @@ const getIconFromKey = (key: string) => {
             return <CodeOutlined />
         case 'deploy':
             return <CloudUploadOutlined />
+        case 'sync':
+            return <CloudSyncOutlined />
         case 'theme-market':
             return <AppstoreOutlined />
         case 'settings':
@@ -77,6 +83,7 @@ export default function PageLayout() {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
 
     const locale = useLocale()
+    const { theme } = useContext(GlobalContext)
 
     const currentComponent = qs.parseUrl(location.pathname).url.slice(1)
     const [routes, defaultRoute] = useRoute()
@@ -245,7 +252,7 @@ export default function PageLayout() {
     // }
 
     return (
-        <Layout className={styles.layout}>
+        <Layout className={styles.layout} data-theme={theme}>
             <Navbar />
             <Layout>
                 <Sider
@@ -253,12 +260,13 @@ export default function PageLayout() {
                     collapsed={collapsed}
                     collapsedWidth={isMobile ? 0 : 80}
                     width={220}
-                    theme="light"
+                    theme={theme === 'dark' ? 'dark' : 'light'}
                 >
                     <Button type="default" onClick={toggleCollapsed} className={styles['collapse-btn']} size='small' >
                         {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
                     </Button>
                     <Menu
+                        theme={theme === 'dark' ? 'dark' : 'light'}
                         style={{ height: '100%' }}
                         selectedKeys={selectedKeys}
                         onClick={onClickItem}
@@ -285,24 +293,24 @@ export default function PageLayout() {
                                         const rout = (<Route
                                             key={index}
                                             path={`/${route.key}`}
-                                            element={route.component.render()}
+                                            element={React.createElement(route.component)}
                                         />)
                                         return rout
                                     })
                                 }
                                 <Route path="/"
-                                    element={lazyload(() => import(`./pages/${defaultRoute}`)).render()}
+                                    element={<DashboardPage />}
                                 />
                                 <Route
                                     path="/post/:_id"
-                                    element={lazyload(() => import('./pages/content/posts/post')).render()}
+                                    element={<PostEditorPage />}
                                 />
                                 <Route
                                     path="/page/:_id"
-                                    element={lazyload(() => import('./pages/content/pages/page')).render()}
+                                    element={<PageEditorPage />}
                                 />
                                 <Route path="*"
-                                    element={lazyload(() => import(`./pages/${defaultRoute}`)).render()}
+                                    element={<DashboardPage />}
                                 />
                             </Routes>
                         </Content>

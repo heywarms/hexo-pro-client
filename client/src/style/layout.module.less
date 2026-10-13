@@ -32,6 +32,14 @@
     background-color: #fff;
 }
 
+.layout[data-theme='dark'] .layout-sider {
+    background: #17191d;
+    :global(.ant-menu) { background: #17191d; }
+    :global(.ant-menu-item), :global(.ant-menu-submenu-title) { color: #b4bbc7; }
+    :global(.ant-menu-item-selected) { background: #263247; color: #a7beff; }
+    .collapse-btn { background: #1d1f23; border-color: #42464f; color: #b4bbc7; }
+}
+
 .sub-layout-1 {
     // padding-top: 60px;
     height: calc(100vh - 100px);

@@ -17,7 +17,7 @@ import { GlobalContext } from "@/context"
 import cs from 'classnames'
 import useDeviceDetect from "@/hooks/useDeviceDetect"
 import useRoute from "@/routes"
-import { base64Encode } from "@/utils/encodeUtils"
+import { documentRouteId } from "@/utils/documentIdentity"
 import { openDesktopLink } from "@/utils/desktopUtils"
 import SettingIcon from '../../assets/setting.svg'
 
@@ -197,7 +197,7 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
                 const post = res.data
                 post.date = parseDateTime(post.date)
                 post.updated = parseDateTime(post.updated)
-                navigate(`/post/${base64Encode(post.permalink)}`)
+                navigate(`/post/${documentRouteId(post)}`)
             })
         } else {
             // 如果不存在，直接创建
@@ -205,7 +205,7 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
                 const post = res.data
                 post.date = parseDateTime(post.date)
                 post.updated = parseDateTime(post.updated)
-                navigate(`/post/${base64Encode(post.permalink)}`)
+                navigate(`/post/${documentRouteId(post)}`)
             })
         }
         setOpen(false)
@@ -267,7 +267,7 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
                 throw new Error('页面已创建，但未获取到页面链接')
             }
 
-            navigate(`/page/${base64Encode(page.permalink)}`)
+            navigate(`/page/${documentRouteId(page)}`)
         } catch (err) {
             console.log(err)
             api.error({ message: locale['error.title'], description: err.message })
@@ -325,9 +325,9 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
 
     const onClickSerchitem = (item) => {
         if (!item.isPage) {
-            navigate(`/post/${base64Encode(item.permalink)}`)
+            navigate(`/post/${documentRouteId(item)}`)
         } else {
-            navigate(`/page/${base64Encode(item.permalink)}`)
+            navigate(`/page/${documentRouteId(item)}`)
         }
     }
 
