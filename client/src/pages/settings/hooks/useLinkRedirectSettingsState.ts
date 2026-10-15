@@ -1,33 +1,29 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { getLinkRedirectSettings, updateLinkRedirectSettings } from '@/utils/desktopUtils'
 
 type LinkRedirectState = {
   enabled: boolean
   domain: string
-  setEnabled: (enabled: boolean) => void
+  savedDomain: string
   setDomain: (domain: string) => void
   persist: (next?: { enabled?: boolean; domain?: string }) => void
 }
 
 export function useLinkRedirectSettingsState(): LinkRedirectState {
-  const [enabled, setEnabled] = useState(false)
-  const [domain, setDomain] = useState('http://localhost:4000')
-
-  useEffect(() => {
-    const settings = getLinkRedirectSettings()
-    setEnabled(!!settings.enabled)
-    setDomain(settings.domain || 'http://localhost:4000')
-  }, [])
+  const [settings, setSettings] = useState(getLinkRedirectSettings)
+  const [domain, setDomain] = useState(settings.domain)
 
   const persist = useCallback(
     (next?: { enabled?: boolean; domain?: string }) => {
-      const finalEnabled = next?.enabled ?? enabled
-      const finalDomain = next?.domain ?? domain
+      const finalEnabled = next?.enabled ?? settings.enabled
+      // Toggling must never persist an unfinished or invalid input.
+      const finalDomain = next?.domain ?? settings.domain
       updateLinkRedirectSettings(finalEnabled, finalDomain)
+      setSettings({ enabled: finalEnabled, domain: finalDomain })
     },
-    [domain, enabled],
+    [settings],
   )
 
-  return { enabled, domain, setEnabled, setDomain, persist }
+  return { enabled: settings.enabled, domain, savedDomain: settings.domain, setDomain, persist }
 }
 

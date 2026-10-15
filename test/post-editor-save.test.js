@@ -47,4 +47,19 @@ test('saving a renamed article preserves its identity, content and front matter 
     raw = frontMatter.parse(await fs.readFile(path.join(base, 'source/_posts/renamed.md'), 'utf8'));
     assert.equal(raw.custom, 'Updated setting');
     assert.equal(raw._content, 'Second save\n');
+
+    // The properties sidebar sends a complete metadata snapshot while body edits
+    // continue through the same document writer. Preserve every value's type.
+    await save({ frontMatter: { comments: false, sticky: 0, label: 'false', empty: '', gallery: { images: ['一.jpg', 'two.jpg'], options: null } }, tags: ['随笔', 'Hexo'], categories: [['技术', '前端']] });
+    await save({ _content: 'Body after property edits\n' });
+    raw = frontMatter.parse(await fs.readFile(path.join(base, 'source/_posts/renamed.md'), 'utf8'));
+    assert.equal(raw.comments, false);
+    assert.equal(raw.sticky, 0);
+    assert.equal(raw.label, 'false');
+    assert.equal(raw.empty, '');
+    assert.deepEqual(raw.gallery, { images: ['一.jpg', 'two.jpg'], options: null });
+    assert.deepEqual(raw.categories, [['技术', '前端']]);
+    assert.deepEqual(raw.tags, ['随笔', 'Hexo']);
+    assert.equal(raw.custom, undefined);
+    assert.equal(raw._content, 'Body after property edits\n');
 });

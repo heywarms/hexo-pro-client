@@ -42,7 +42,7 @@ const EditorSettingsCard: React.FC = () => {
         </Select>
       </div>
 
-      <div style={{ padding: '12px 16px', backgroundColor: '#f6f8fa', borderRadius: '6px', border: '1px solid #e1e4e8' }}>
+      <div style={{ padding: '12px 16px', backgroundColor: 'var(--manage-surface)', borderRadius: '6px', border: '1px solid var(--manage-line)' }}>
         <Text type="secondary" style={{ fontSize: '12px' }}>
           文章仍保存为 Markdown。包含 Hexo 标签、HTML 等特殊内容时，编辑器会自动保留源码模式。写作界面的“主题预览”可查看当前主题下的文章效果，草稿也可预览。
         </Text>

@@ -4,6 +4,9 @@ import { CloudSyncOutlined, CloudUploadOutlined, DownloadOutlined, FolderOutline
 import { useNavigate } from 'react-router-dom'
 import service from '@/utils/api'
 import styles from './style.module.less'
+import ManagementPage from '../content/components/ManagementPage'
+import useLocale from '@/hooks/useLocale'
+import systemLocale from '../system/locale'
 
 type Config = { repository: string; branch: string; githubToken: string; commitMessage?: string; gitUserName?: string; gitUserEmail?: string; hasGithubToken?: boolean; hasDeployCredential?: boolean; projectPath?: string; suggestedRepository?: string; suggestedBranch?: string }
 type Change = { path: string; direction: 'upload' | 'download' | 'merge' | 'conflict'; localExists: boolean; remoteExists: boolean }
@@ -13,6 +16,8 @@ const errorText = (error: any) => error?.response?.data?.msg || error?.response?
 
 export default function SyncPage() {
   const navigate = useNavigate()
+  const ui = useLocale(systemLocale)
+  const [loadError, setLoadError] = useState(false)
   const { token } = theme.useToken()
   const [form] = Form.useForm<Config>()
   const [config, setConfig] = useState<Config>({ repository: '', branch: 'main', githubToken: '' })
@@ -27,6 +32,8 @@ export default function SyncPage() {
   const [diff, setDiff] = useState<{ path: string; local: string; remote: string } | null>(null)
 
   const load = useCallback(async () => {
+    setLoading(true)
+    setLoadError(false)
     try {
       const [settings, state] = await Promise.all([service.get('/hexopro/api/sync/config'), service.get('/hexopro/api/sync/status')])
       setConfig(settings.data)
@@ -34,7 +41,7 @@ export default function SyncPage() {
         branch: settings.data.repository ? settings.data.branch : settings.data.suggestedBranch || 'main' })
       setStatus(state.data)
       setError(state.data.error || '')
-    } catch (err) { setError(errorText(err)) } finally { setLoading(false) }
+    } catch (err) { setLoadError(true); setError(errorText(err)) } finally { setLoading(false) }
   }, [form])
   useEffect(() => { load() }, [load])
   useEffect(() => {
@@ -86,7 +93,7 @@ export default function SyncPage() {
     } catch (err) { setError(errorText(err)); setPreview(null) } finally { setBusy('') }
   }
 
-  const disabled = Boolean(busy) || Boolean(status.isSyncing)
+  const disabled = loading || loadError || Boolean(busy) || Boolean(status.isSyncing)
   const unresolved = preview?.changes.filter(change => change.direction === 'conflict' && !resolutions[change.path]).length || 0
   const countDirection = (direction: string) => preview?.changes.filter(change => change.direction === direction || change.direction === 'merge' || (change.direction === 'conflict' && resolutions[change.path] === direction)).length || 0
   const showDiff = async (file: string) => {
@@ -101,11 +108,8 @@ export default function SyncPage() {
     return <Tag color="orange">选择保留版本</Tag>
   }
 
-  return <div className={styles.page}>
-    <header className={styles.header}>
-      <div><Typography.Title level={3}>云同步</Typography.Title><Typography.Text type="secondary">把博客源文件连起来，随时在手机和电脑之间继续写作。</Typography.Text></div>
-      <Button icon={<CloudUploadOutlined aria-hidden />} onClick={() => navigate('/deploy')}>部署网站</Button>
-    </header>
+  return <ManagementPage sectionTitle={ui.system} title={ui.syncTitle} description={ui.syncDescription}
+    actions={<Button icon={<CloudUploadOutlined aria-hidden />} onClick={() => navigate('/deploy')}>部署网站</Button>}>
     <Spin spinning={loading}>
       <div className={styles.layout}>
         <Card title={<Space><GithubOutlined aria-hidden />GitHub 连接</Space>} className={styles.connection}>
@@ -132,29 +136,30 @@ export default function SyncPage() {
           </Space>
         </Card>
         <div className={styles.content}>
-          <Card>
+          <Card className={styles.summary}>
             <div className={styles.statusRow}>
-              <div><Typography.Title level={4}>手机和电脑，共用一份博客</Typography.Title>
+              <div><Typography.Title level={4}>同步状态</Typography.Title>
                 <Badge status={connected ? 'success' : 'default'} text={connected ? 'GitHub 已连接' : config.hasGithubToken ? '凭据已保存，待检查' : '填写连接后开始同步'} />
               </div>
               <Button type={preview ? 'default' : 'primary'} size="large" icon={<CloudSyncOutlined aria-hidden />} onClick={() => check(true)} disabled={disabled} loading={busy === 'preview'}>检查变更</Button>
             </div>
+            <div className={styles.workflow} aria-label="同步步骤"><span><b>01</b>连接仓库</span><span><b>02</b>检查变更</span><span><b>03</b>确认同步</span></div>
             <div className={styles.scope}><SafetyCertificateOutlined aria-hidden /><span>同步文章、图片、主题、配置和文章 ID。保留 Front Matter，跳过依赖、缓存和本机凭据。</span></div>
             {status.lastSyncTime && <Typography.Text type="secondary">上次同步：{new Date(status.lastSyncTime).toLocaleString()}</Typography.Text>}
           </Card>
           <div aria-live="polite">
-            {error && <Alert type="error" showIcon message="操作未完成" description={error} />}
+            {error && <Alert type="error" showIcon message="操作未完成" description={error} action={loadError ? <Button onClick={load}>{ui.retry}</Button> : undefined} />}
             {notice && <Alert type="success" showIcon message={notice} />}
-            {disabled && <Alert type="info" showIcon icon={<CloudSyncOutlined spin aria-hidden />} message={busy === 'apply' || status.stage === 'syncing' ? '正在同步，请保持应用打开…' : '正在检查 GitHub 和本机文件…'} />}
+            {(busy || status.isSyncing) && <Alert type="info" showIcon icon={<CloudSyncOutlined spin aria-hidden />} message={busy === 'apply' || status.stage === 'syncing' ? '正在同步，请保持应用打开…' : '正在检查 GitHub 和本机文件…'} />}
           </div>
-          {preview ? <Card title="本次变更" extra={<Typography.Text type="secondary">{preview.repository} · {preview.branch}</Typography.Text>}>
+          {preview ? <Card className={styles.changes} title="本次变更" extra={<Typography.Text type="secondary">{preview.repository} · {preview.branch}</Typography.Text>}>
             <div className={styles.stats}>
               <div><CloudUploadOutlined aria-hidden /><strong>{countDirection('upload')}</strong><span>待上传</span></div>
               <div><DownloadOutlined aria-hidden /><strong>{countDirection('download')}</strong><span>待下载</span></div>
               <div><strong>{unresolved}</strong><span>需选择版本</span></div>
             </div>
             {preview.firstSync && <Typography.Paragraph type="secondary">首次同步会保留两边各自新增的文件。同名文件内容不同时，请选择要保留的版本。</Typography.Paragraph>}
-            <Table<Change> rowKey="path" size="small" dataSource={preview.changes} pagination={{ pageSize: 8, showSizeChanger: false, hideOnSinglePage: true }}
+            <Table<Change> rowKey="path" size="small" scroll={{ x: preview.conflictCount ? 560 : 400 }} dataSource={preview.changes} pagination={{ pageSize: 8, showSizeChanger: false, hideOnSinglePage: true }}
               locale={{ emptyText: '两边文件一致，可以确认同步记录。' }} columns={[
                 { title: '文件', dataIndex: 'path', render: (name: string) => <Button type="link" className={styles.fileName} onClick={() => showDiff(name)} disabled={disabled}>{name}</Button> },
                 { title: '变更', width: 130, render: (_, change) => actionLabel(change) },
@@ -177,5 +182,5 @@ export default function SyncPage() {
           <pre style={{ background: token.colorFillAlter, color: token.colorText }}>{diff[side]}</pre></section>)}
       </div>
     </Modal>
-  </div>
+  </ManagementPage>
 }

@@ -14,6 +14,7 @@ import BlockEditor from '@/components/BlogEditor/BlockEditor'
 import SourceEditor from '@/components/BlogEditor/SourceEditor'
 import DocumentTitle from '@/components/BlogEditor/DocumentTitle'
 import { getMarkdownIssue } from '@/components/BlogEditor/markdownSafety.mjs'
+import { remarkSizedImages } from '@/components/BlogEditor/imageMarkdown.mjs'
 import { WorkspaceStore } from './workspaceStore.mjs'
 import { isDirty, splitDocument, titleForDocument } from './documentModel.mjs'
 import { storage, credentials, exportFile, native } from './nativeStorage'
@@ -26,7 +27,7 @@ const images = createImageService(store)
 const noOp = () => {}
 const DocumentSourceContext = React.createContext('')
 
-function PreviewImage({ src, alt }: { src?: string; alt?: string }) {
+function PreviewImage({ src, alt, width }: { src?: string; alt?: string; width?: number | string }) {
     const source = React.useContext(DocumentSourceContext)
     const [url, setUrl] = useState('')
     const [failed, setFailed] = useState(false)
@@ -36,7 +37,7 @@ function PreviewImage({ src, alt }: { src?: string; alt?: string }) {
         return () => { active = false }
     }, [src, source])
     if (failed) return <span className="image-unavailable">{alt || '图片'} · 联网后可加载</span>
-    return url ? <img src={url} alt={alt || ''} loading="lazy" /> : <span className="image-unavailable">正在加载图片…</span>
+    return url ? <img src={url} alt={alt || ''} width={width} loading="lazy" /> : <span className="image-unavailable">正在加载图片…</span>
 }
 
 function DocumentEditor({ doc, saveStatus, onRun, onBack, onSettings, onRaw, onExport, onTrash }: any) {
@@ -128,7 +129,7 @@ function DocumentEditor({ doc, saveStatus, onRun, onBack, onSettings, onRaw, onE
         </div>
         {view === 'preview' && <div className="document-scroll preview-scroll">
             <article className="prose"><h1>{title}</h1><p className="preview-caption">正文预览 · 发布样式由博客主题决定</p>
-                <DocumentSourceContext.Provider value={doc.source}><ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={{ img: PreviewImage,
+                <DocumentSourceContext.Provider value={doc.source}><ReactMarkdown remarkPlugins={[remarkGfm, remarkSizedImages]} skipHtml components={{ img: PreviewImage,
                     a: props => <a {...props} target="_blank" rel="noopener noreferrer" /> }}>{body}</ReactMarkdown></DocumentSourceContext.Provider>
             </article>
         </div>}

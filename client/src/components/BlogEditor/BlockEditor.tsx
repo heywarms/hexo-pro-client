@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef } from 'react'
+import React, { useContext, useEffect, useRef, useState } from 'react'
 import { BlockNoteSchema, defaultBlockSpecs, defaultStyleSpecs } from '@blocknote/core'
 import { en, zh } from '@blocknote/core/locales'
 import { BlockNoteView } from '@blocknote/mantine'
@@ -14,6 +14,10 @@ import { message } from 'antd'
 import { service } from '@/utils/api'
 import { GlobalContext } from '@/context'
 import { getMarkdownIssue, preservesMarkdown } from './markdownSafety.mjs'
+import { createLocalImageResolver, getUploadedImageUrl } from './imageFiles.mjs'
+import { handleClipboardImagePaste } from './clipboardImages.mjs'
+import { blocksToMarkdownWithImageSizes } from './imageMarkdown.mjs'
+import './imageResize.less'
 import '@blocknote/mantine/style.css'
 
 const schema = BlockNoteSchema.create({
@@ -64,9 +68,18 @@ function MarkdownDragMenu() {
     const Components = useComponentsContext()
     const block = useExtensionState(SideMenuExtension, { selector: state => state?.block })
     if (!block) return null
+    const setImageWidth = (fraction: number) => {
+        const canvasWidth = editor.domElement?.firstElementChild?.clientWidth || 640
+        editor.updateBlock(block, { props: { previewWidth: Math.max(64, Math.round(canvasWidth * fraction)) } })
+    }
     return <DragHandleMenu>
         <Components.Generic.Menu.Item onClick={() => editor.moveBlocksUp(block)}>上移</Components.Generic.Menu.Item>
         <Components.Generic.Menu.Item onClick={() => editor.moveBlocksDown(block)}>下移</Components.Generic.Menu.Item>
+        {block.type === 'image' && block.props.url && <>
+            <Components.Generic.Menu.Item onClick={() => setImageWidth(0.25)}>图片宽度 25%</Components.Generic.Menu.Item>
+            <Components.Generic.Menu.Item onClick={() => setImageWidth(0.5)}>图片宽度 50%</Components.Generic.Menu.Item>
+            <Components.Generic.Menu.Item onClick={() => setImageWidth(1)}>图片宽度 100%</Components.Generic.Menu.Item>
+        </>}
         <RemoveBlockItem>{dictionary.drag_handle.delete_menuitem}</RemoveBlockItem>
     </DragHandleMenu>
 }
@@ -87,13 +100,7 @@ async function uploadImage(file: File) {
         const config = await service.get('/hexopro/api/images/config/get')
         const storageType = config.data?.data?.type || 'local'
         const res = await service.post('/hexopro/api/images/upload', { data: image, filename: file.name, storageType })
-        const result = res.data
-        if (result.code && result.code !== 200) throw new Error(result.msg || '图片上传失败')
-        const url = storageType === 'local'
-            ? result.path || result.src || result.url
-            : result.url || result.src || result.path
-        if (!url) throw new Error('图片上传后未返回地址')
-        return url
+        return getUploadedImageUrl(res.data, storageType)
     } catch (error) {
         message.error((error as Error).message)
         throw error
@@ -118,6 +125,8 @@ export default function BlockEditor({ value, onChange, onReady, onFallback, uplo
     const hydrating = useRef(true)
     const lastValue = useRef<string>()
     const lastEditor = useRef<unknown>()
+    const [imageResolver] = useState(() => createLocalImageResolver(service))
+    useEffect(() => () => imageResolver.dispose(), [imageResolver])
     const editor = useCreateBlockNote({
         schema,
         dictionary: lang?.startsWith('en') ? en : {
@@ -125,7 +134,8 @@ export default function BlockEditor({ value, onChange, onReady, onFallback, uplo
             placeholders: { ...zh.placeholders, default: '开始写作，或输入 / 插入内容…', emptyDocument: '开始写作，或输入 / 插入内容…' },
         },
         uploadFile: file => (callbacks.current.uploadFile || uploadImage)(file),
-        resolveFileUrl: url => callbacks.current.resolveFileUrl ? callbacks.current.resolveFileUrl(url) : Promise.resolve(url),
+        resolveFileUrl: url => callbacks.current.resolveFileUrl ? callbacks.current.resolveFileUrl(url) : imageResolver.resolve(url),
+        pasteHandler: context => handleClipboardImagePaste(context) ?? context.defaultPasteHandler(),
         tables: { splitCells: false, cellBackgroundColor: false, cellTextColor: false, headers: false },
     }, [lang])
 
@@ -135,7 +145,7 @@ export default function BlockEditor({ value, onChange, onReady, onFallback, uplo
         try {
             const blocks = editor.tryParseMarkdownToBlocks(value)
             const issue = getMarkdownIssue(value)
-            if (issue || !preservesMarkdown(value, editor.blocksToMarkdownLossy(blocks))) {
+            if (issue || !preservesMarkdown(value, blocksToMarkdownWithImageSizes(editor, blocks))) {
                 callbacks.current.onFallback(issue || '块编辑暂时无法完整保留的 Markdown 结构')
                 return
             }
@@ -156,10 +166,11 @@ export default function BlockEditor({ value, onChange, onReady, onFallback, uplo
         formattingToolbar={false}
         sideMenu={false}
         slashMenu={false}
+        className="blog-block-editor"
         aria-label="文章块编辑器"
         onChange={() => {
             if (hydrating.current) return
-            const markdown = editor.blocksToMarkdownLossy()
+            const markdown = blocksToMarkdownWithImageSizes(editor)
             lastValue.current = markdown
             callbacks.current.onChange(markdown)
         }}

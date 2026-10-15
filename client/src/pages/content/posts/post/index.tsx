@@ -28,8 +28,10 @@ function Post() {
     const [postMetaData, setPostMetadata] = useState({ tags: [], categories: [], frontMatter: {} })
     const [doc, setDoc] = useState('')
     const [title, setTitle] = useState('')
-    const latestEditor = useRef({ title, content: doc })
-    latestEditor.current = { title, content: doc }
+    const latestEditor = useRef({ title, content: doc, metadata: postMetaData })
+    latestEditor.current = { title, content: doc, metadata: postMetaData }
+    const metadataRef = useRef(postMetaData)
+    metadataRef.current = postMetaData
     const [rendered, setRendered] = useState('')
     const [previewRevision, setPreviewRevision] = useState(0)
     const [visible, setVisible] = useState(false)
@@ -123,10 +125,10 @@ function Post() {
         }
     }
 
-    const handleChange = async (update) => {
+    const handleMetadataChange = (update) => {
+        metadataRef.current = { ...metadataRef.current, ...update }
+        setPostMetadata(metadataRef.current)
         autosave.enqueue(update)
-        await autosave.flush()
-        setPreviewRevision(v => v + 1)
     }
 
     const handleChangeTitle = (value: string) => {
@@ -236,6 +238,8 @@ function Post() {
         if (sourceState.active && requestRevision === loadRevision.current) {
             if (saved) setPost(current => ({ ...current, permalink: saved.permalink, source: saved.source, title: saved.title }))
             if (payload.title !== update.title) setTitle(current => current === update.title ? payload.title : current)
+            if (res.data.tagsCategoriesAndMetadata) setTagsCatMeta(res.data.tagsCategoriesAndMetadata)
+            if (['tags', 'categories', 'frontMatter'].some(key => Object.prototype.hasOwnProperty.call(payload, key))) setPreviewRevision(value => value + 1)
         }
         return res.data
     }, [_id, sourceState])
@@ -246,14 +250,21 @@ function Post() {
         if (typeof update.title === 'string') setTitle(update.title)
         if (typeof update._content === 'string') { setDoc(update._content); setRendered(update._content) }
         setPostMetadata(current => ({ ...current, tags: update.tags ?? current.tags,
-            categories: update.categories ?? current.categories, frontMatter: update.frontMatter ?? current.frontMatter }))
+            categories: update.categories ?? current.categories, frontMatter: update.frontMatter ?? current.frontMatter,
+            ...(update.frontMatterStyles ? { frontMatterStyles: update.frontMatterStyles } : {}) }))
     }
     const resolveConflict = async () => {
-        const remote = (await service.get('/hexopro/api/posts/' + encodeURIComponent(_id))).data
+        const [remoteResult, remoteMetaResult] = await Promise.all([
+            service.get('/hexopro/api/posts/' + encodeURIComponent(_id)),
+            service.get('/hexopro/api/postMeta/' + encodeURIComponent(_id)),
+        ])
+        const remote = remoteResult.data
         if (!sourceState.active) return
         const shown = latestEditor.current
-        await reviewSaveConflict({ remote, ...shown, isActive: () => sourceState.active, onKeepLocal: async (revision) => {
-            if (latestEditor.current.title !== shown.title || latestEditor.current.content !== shown.content) {
+        const hasMetadataChanges = ['tags', 'categories', 'frontMatter'].some(key => Object.prototype.hasOwnProperty.call(autosave.snapshot(), key))
+        await reviewSaveConflict({ remote, ...shown, localMetadata: hasMetadataChanges ? shown.metadata : undefined,
+            remoteMetadata: hasMetadataChanges ? remoteMetaResult.data : undefined, isActive: () => sourceState.active, onKeepLocal: async (revision) => {
+            if (latestEditor.current.title !== shown.title || latestEditor.current.content !== shown.content || latestEditor.current.metadata !== shown.metadata) {
                 throw new Error('编辑内容已变化，请重新打开版本比较后再保存')
             }
             sourceState.value = remote.source
@@ -264,6 +275,7 @@ function Post() {
     }
 
     const handleAIClick = () => {
+        setVisible(false)
         setAiPanelVisible(!aiPanelVisible)
     }
 
@@ -355,11 +367,13 @@ function Post() {
                             initTitle={title}
                             popTitle={t['editor.header.pop.title']}
                             popDes={t['post.editor.header.pop.des']}
-                            handleSettingClick={() => setVisible(true)}
+                            handleSettingClick={() => { setVisible(!visible); setAiPanelVisible(false) }}
+                            settingsVisible={visible}
                             handleRemoveSource={removeBlog}
                             handleAIClick={handleAIClick}
                         />
                         {!isDataLoading && <RecoveryNotice autosave={autosave} onRestore={restoreContent} title={title} content={doc} onResolveConflict={resolveConflict} />}
+                        <div className={styles['editor-workspace']}>
                         <div className={styles['editor-main']}>
                             {!isDataLoading && <BlogEditor
                                 key={_id}
@@ -375,15 +389,17 @@ function Post() {
                                 previewRevision={previewRevision}
                             />}
                         </div>
-                        <PostSettings
+                        {!isDataLoading && <PostSettings
+                            key={_id}
                             visible={visible}
                             setVisible={setVisible}
                             tagCatMeta={tagsCatMeta}
-                            setTagCatMeta={setTagsCatMeta}
                             postMeta={postMetaData}
-                            setPostMeta={setPostMetadata}
-                            handleChange={handleChange}
-                        />
+                            onChange={handleMetadataChange}
+                            saveStatus={autosave.status}
+                            onRetrySave={autosave.retry}
+                        />}
+                        </div>
                     </>
                 )}
             </div>

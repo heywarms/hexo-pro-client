@@ -1,27 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import {
-  Button,
-  Card,
-  Col,
-  Divider,
-  Drawer,
-  message,
-  Modal,
-  Row,
-  Space,
-  Spin,
-  Typography,
-} from 'antd'
-import {
-  DownloadOutlined,
-  SettingOutlined,
-  AppstoreOutlined,
-  SwapOutlined,
-} from '@ant-design/icons'
+import { Alert, Button, Drawer, Empty, Input, message, Modal, Radio, Spin, Tag, theme as antdTheme } from 'antd'
+import { DownloadOutlined, SettingOutlined, AppstoreOutlined, SwapOutlined, CheckCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import service from '@/utils/api'
 import useLocale from '@/hooks/useLocale'
 import ThemeConfigPanel from './components/ThemeConfigPanel'
 import styles from './style.module.less'
+import ManagementPage from '../content/components/ManagementPage'
+import shared from '../content/components/ManagementPage/style.module.less'
+import systemLocale from '../system/locale'
 
 // 检查是否为桌面环境
 function isDesktopEnvironment(): boolean {
@@ -29,8 +15,6 @@ function isDesktopEnvironment(): boolean {
     typeof (window as any).electronAPI === 'object' &&
     (window as any).electronAPI !== null
 }
-
-const { Title, Text } = Typography
 
 interface BuiltinTheme {
   id: string
@@ -47,6 +31,11 @@ interface ThemeStatus {
 
 const ThemeMarketPage: React.FC = () => {
   const t = useLocale()
+  const ui = useLocale(systemLocale)
+  const { token } = antdTheme.useToken()
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [error, setError] = useState(false)
   const [themes, setThemes] = useState<BuiltinTheme[]>([])
   const [statusMap, setStatusMap] = useState<Record<string, ThemeStatus>>({})
   const [loading, setLoading] = useState(true)
@@ -59,13 +48,15 @@ const ThemeMarketPage: React.FC = () => {
   }>({ visible: false, configType: 'theme', themeId: '', title: '' })
 
   const fetchThemes = useCallback(async () => {
+    setLoading(true)
+    setError(false)
     try {
       const res = await service.get('/hexopro/api/theme/list')
       setThemes(res.data || [])
     } catch (err) {
-      message.error(t['theme.list.fetchFailed'] || '获取主题列表失败')
-    }
-  }, [t])
+      setError(true)
+    } finally { setLoading(false) }
+  }, [])
 
   const fetchInstalledStatus = useCallback(async () => {
     if (themes.length === 0) return
@@ -85,14 +76,7 @@ const ThemeMarketPage: React.FC = () => {
     setStatusMap(map)
   }, [themes])
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      await fetchThemes()
-      setLoading(false)
-    }
-    void load()
-  }, [fetchThemes])
+  useEffect(() => { void fetchThemes() }, [fetchThemes])
 
   useEffect(() => {
     if (themes.length > 0) {
@@ -190,7 +174,7 @@ const ThemeMarketPage: React.FC = () => {
       visible: true,
       configType: 'global',
       themeId: '',
-      title: t['theme.globalConfig'] || '全局配置',
+      title: ui.globalConfig,
     })
   }
 
@@ -203,97 +187,60 @@ const ThemeMarketPage: React.FC = () => {
     })
   }
 
+  const currentTheme = themes.find(theme => statusMap[theme.id]?.isCurrent)
+  const filteredThemes = themes.filter(theme => (filter !== 'installed' || statusMap[theme.id]?.installed) &&
+    `${theme.name} ${theme.author} ${theme.description}`.toLowerCase().includes(query.trim().toLowerCase()))
+  const installedCount = themes.filter(theme => statusMap[theme.id]?.installed).length
+
   return (
-    <div className={styles.container}>
-      <Row gutter={[16, 16]}>
-        <Col span={24}>
-          <Title level={4}>
-            <AppstoreOutlined style={{ marginRight: 8 }} />
-            {t['theme.market.title'] || '主题市场'}
-          </Title>
-          <Text type="secondary">
-            {t['theme.market.desc'] ||
-              '一键安装 Hexo 主题，可视化配置主题参数'}
-          </Text>
-          <div style={{ marginTop: 12 }}>
-            <Space>
-              <Button icon={<SettingOutlined />} onClick={openGlobalConfig}>
-                {t['theme.globalConfig'] || '全局配置 _config.yml'}
-              </Button>
-            </Space>
-          </div>
-        </Col>
-      </Row>
-
-      <Divider />
-
-      <Spin spinning={loading}>
+    <ManagementPage sectionTitle={ui.system} title={ui.themeTitle} description={ui.themeDescription}
+      count={ui.themeCount.replace('{count}', String(themes.length))}
+      actions={<><Button icon={<ReloadOutlined />} onClick={fetchThemes} loading={loading} disabled={Boolean(installing)}>{ui.refresh}</Button><Button icon={<SettingOutlined />} onClick={openGlobalConfig}>{ui.globalConfig}</Button></>}>
+      {currentTheme && <div className={styles.currentTheme}>
+        <span className={styles.currentIcon}><AppstoreOutlined /></span>
+        <div className={styles.currentInfo}><span><CheckCircleOutlined /> {ui.currentTheme}</span><h2>{currentTheme.name}</h2><p>{ui.currentThemeHint}</p></div>
+        <Button type="primary" icon={<SettingOutlined />} onClick={() => openConfig(currentTheme)}>{t['theme.config']}</Button>
+      </div>}
+      <div className={shared.toolbar}>
+        <Radio.Group className={styles.filters} value={filter} onChange={event => setFilter(event.target.value)} optionType="button" buttonStyle="solid"
+          options={[{label: `${ui.allThemes} ${themes.length}`,value:'all'},{label:`${ui.installedThemes} ${installedCount}`,value:'installed'}]} />
+        <Input className={shared.search} value={query} allowClear prefix={<SearchOutlined />} placeholder={ui.searchThemes} aria-label={ui.searchThemes} onChange={event => setQuery(event.target.value)} />
+      </div>
+      {error ? <Alert type="error" showIcon message={t['theme.list.fetchFailed']} action={<Button onClick={fetchThemes}>{ui.retry}</Button>} /> : <Spin spinning={loading}>
         <div className={styles.themeGrid}>
-          {themes.map((theme) => {
-            const status = statusMap[theme.id] || { installed: false, isCurrent: false }
+          {filteredThemes.map(theme => {
+            const status = statusMap[theme.id]
             const isInstalling = installing === theme.id
-
-            return (
-              <Card key={theme.id} className={styles.themeCard} hoverable>
-                <div className={styles.themePreview}>
-                  {theme.name}
-                </div>
-                <div className={styles.themeInfo}>
-                  <div className={styles.themeName}>{theme.name}</div>
-                  <div className={styles.themeDesc}>{theme.description}</div>
-                  <div className={styles.themeAuthor}>
-                    {t['theme.author'] || '作者'}: {theme.author}
-                  </div>
-                </div>
+            return <article key={theme.id} className={styles.themeCard} data-current={Boolean(status?.isCurrent)}>
+              <div className={styles.themeIdentity} data-theme-id={theme.id} aria-hidden="true"><span>HEXO THEME</span><strong>{theme.name}</strong><AppstoreOutlined /></div>
+              <div className={styles.themeInfo}>
+                <div className={styles.themeName}><h3>{theme.name}</h3><Tag bordered={false} color={status?.isCurrent ? 'blue' : 'default'}>{status?.isCurrent ? ui.currentTheme : status?.installed ? ui.installed : ui.available}</Tag></div>
+                <p className={styles.themeDesc}>{theme.description}</p>
+                <div className={styles.themeAuthor}>{t['theme.author']}: {theme.author}</div>
                 <div className={styles.themeActions}>
-                  {!status.installed ? (
-                    <Button
-                      type="primary"
-                      icon={<DownloadOutlined />}
-                      loading={isInstalling}
-                      onClick={() => handleInstall(theme.id)}
-                    >
-                      {t['theme.install'] || '一键安装'}
-                    </Button>
-                  ) : (
-                    <>
-                      {status.isCurrent ? (
-                        <Button disabled>
-                          {t['theme.current'] || '当前使用'}
-                        </Button>
-                      ) : (
-                        <Button
-                          type="primary"
-                          icon={<SwapOutlined />}
-                          loading={isInstalling}
-                          onClick={() => handleSwitchTheme(theme.id)}
-                        >
-                          {t['theme.switch'] || '切换主题'}
-                        </Button>
-                      )}
-                      <Button
-                        icon={<SettingOutlined />}
-                        onClick={() => openConfig(theme)}
-                      >
-                        {t['theme.config'] || '配置'}
-                      </Button>
-                    </>
-                  )}
+                  {!status?.installed ? <Button type="primary" icon={<DownloadOutlined />} loading={isInstalling} disabled={Boolean(installing) || !status} onClick={() => handleInstall(theme.id)}>{t['theme.install']}</Button> : <>
+                    {status.isCurrent ? <Button disabled icon={<CheckCircleOutlined />}>{t['theme.current']}</Button> : <Button type="primary" icon={<SwapOutlined />} loading={isInstalling} disabled={Boolean(installing)} onClick={() => handleSwitchTheme(theme.id)}>{t['theme.switch']}</Button>}
+                    <Button icon={<SettingOutlined />} onClick={() => openConfig(theme)} disabled={Boolean(installing)}>{t['theme.config']}</Button>
+                  </>}
                 </div>
-              </Card>
-            )
+              </div>
+            </article>
           })}
         </div>
-      </Spin>
+        {!loading && !filteredThemes.length && <div className={shared.empty}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={query || filter !== 'all' ? ui.noMatch : ui.noThemes}>
+          {(query || filter !== 'all') && <Button onClick={() => { setQuery(''); setFilter('all') }}>{ui.clearSearch}</Button>}
+        </Empty></div>}
+      </Spin>}
 
       <Drawer
         title={configModal.configType === 'global'
-          ? (t['theme.globalConfig'] || '全局配置 _config.yml')
+          ? `${ui.globalConfig} · _config.yml`
           : `${t['theme.config'] || '配置'} - ${configModal.title}`}
         placement="right"
         onClose={closeConfig}
         open={configModal.visible}
-        width={700}
+        width="min(760px, 100vw)"
+        rootStyle={{ '--theme-surface': token.colorFillAlter, '--theme-line': token.colorBorderSecondary, '--theme-muted': token.colorTextSecondary } as React.CSSProperties}
         destroyOnClose
         bodyStyle={{ padding: 0 }}
       >
@@ -305,7 +252,7 @@ const ThemeMarketPage: React.FC = () => {
           />
         )}
       </Drawer>
-    </div>
+    </ManagementPage>
   )
 }
 

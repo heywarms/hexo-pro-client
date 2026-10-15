@@ -9,8 +9,7 @@
     height: 100%;
     min-height: 0;
     min-width: 0;
-    gap: 16px;
-    background: var(--editor-surface);
+    background: var(--editor-paper);
     &[data-theme='dark'] {
         --editor-paper: #1d1f23;
         --editor-text: #e6e8ed;
@@ -29,10 +28,7 @@
     flex-direction: column;
     min-width: 0;
     overflow: hidden;
-    border-radius: 12px;
-    border: 1px solid var(--editor-line);
     background-color: var(--editor-paper);
-    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.025);
 }
 
 .editor-header {
@@ -49,15 +45,22 @@
     border: none;
 }
 
+.editor-workspace {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    > .editor-main { width: auto; }
+}
+
 .ai-panel-wrap {
     height: 100%;
     width: 380px;
     flex-shrink: 0;
-    border-radius: 12px;
-    border: 1px solid var(--editor-line);
+    border-left: 1px solid var(--editor-line);
     overflow: hidden;
     background: var(--editor-paper);
-    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.025);
 }
 
 .editor-empty-hint {
@@ -84,19 +87,9 @@
     background-color: #ffffff;
     z-index: 102;
     padding: 16px;
-    border-radius: 12px;
 }
 
 @media (max-width: 768px) {
-    .editor-page {
-        padding: 8px;
-        gap: 8px;
-    }
-
-    .editor-layout {
-        border-radius: 10px;
-    }
-
     .editor-main {
         padding: 0;
     }

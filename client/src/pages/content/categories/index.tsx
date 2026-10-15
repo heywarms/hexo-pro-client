@@ -1,192 +1,101 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { Card, Col, Empty, List, Pagination, Row, Spin, Tag, Typography, message, theme as antdTheme } from 'antd'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Alert, Button, Empty, Input, Pagination, Spin, Tag } from 'antd'
+import { ArrowRightOutlined, FolderOutlined, FolderOpenOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
 import service from '@/utils/api'
 import useLocale from '@/hooks/useLocale'
 import { useNavigate } from 'react-router-dom'
 import { documentRouteId } from '@/utils/documentIdentity'
-import styles from './style/index.module.less'
 import ArticleRow from '../components/ArticleRow/ArticleRow'
+import ManagementPage from '../components/ManagementPage'
+import managementLocale from '../components/ManagementPage/locale'
+import shared from '../components/ManagementPage/style.module.less'
+import styles from './style/index.module.less'
 
-const { Text } = Typography
-
-type CategoryItem = {
-  name: string
-  count: number
-  path: string
-}
-
-type CategoryPostItem = {
-  _id: string
-  title: string
-  permalink: string
-  documentId?: string
-  date: string
-  updated: string
-  isDraft: boolean
-  cover?: string
-}
+type CategoryItem = { name: string; count: number; path: string }
+type CategoryPostItem = { _id: string; title: string; permalink: string; documentId?: string; date: string; updated: string; isDraft: boolean; cover?: string }
 
 export default function CategoriesPage() {
   const t = useLocale()
-  const { token } = antdTheme.useToken()
+  const ui = useLocale(managementLocale)
   const navigate = useNavigate()
-
   const [categories, setCategories] = useState<CategoryItem[]>([])
-  const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [query, setQuery] = useState('')
   const [posts, setPosts] = useState<CategoryPostItem[]>([])
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [loadingCategories, setLoadingCategories] = useState(false)
   const [loadingPosts, setLoadingPosts] = useState(false)
-
+  const [error, setError] = useState('')
+  const [categoryError, setCategoryError] = useState('')
+  const request = useRef(0)
   const pageSize = 10
 
   const fetchCategories = useCallback(async () => {
+    setLoadingCategories(true)
+    setCategoryError('')
     try {
-      setLoadingCategories(true)
       const res = await service.get('/hexopro/api/categories/list')
       const list = (res.data || []) as CategoryItem[]
       setCategories(list)
-      if (!selectedCategory && list.length) {
-        setSelectedCategory(list[0].name)
-      }
+      setSelectedCategory(current => list.some(item => item.name === current) ? current : list[0]?.name || '')
     } catch (err: any) {
-      message.error(err?.message || (t['content.categories.fetchFailed'] || '获取分类列表失败'))
-    } finally {
-      setLoadingCategories(false)
-    }
-  }, [selectedCategory, t])
+      setCategoryError(err?.message || ui.loadFailed)
+    } finally { setLoadingCategories(false) }
+  }, [ui.loadFailed])
 
-  const fetchCategoryPosts = useCallback(async (categoryName: string, page: number) => {
-    if (!categoryName) {
-      setPosts([])
-      setTotal(0)
-      return
-    }
+  const fetchPosts = useCallback(async () => {
+    const revision = ++request.current
+    setError('')
+    if (!selectedCategory) { setPosts([]); setTotal(0); setLoadingPosts(false); return }
+    setLoadingPosts(true)
     try {
-      setLoadingPosts(true)
-      const res = await service.get('/hexopro/api/categories/posts', {
-        params: {
-          name: categoryName,
-          page,
-          pageSize,
-          includeDraft: 'true',
-        },
-      })
-      setPosts((res.data?.data || []) as CategoryPostItem[])
+      const res = await service.get('/hexopro/api/categories/posts', { params: { name: selectedCategory, page: currentPage, pageSize, includeDraft: 'true' } })
+      if (revision !== request.current) return
+      setPosts(res.data?.data || [])
       setTotal(res.data?.total || 0)
     } catch (err: any) {
-      message.error(err?.message || (t['content.categories.postsFetchFailed'] || '获取分类文章失败'))
-    } finally {
-      setLoadingPosts(false)
-    }
-  }, [pageSize, t])
+      if (revision === request.current) setError(err?.message || ui.loadFailed)
+    } finally { if (revision === request.current) setLoadingPosts(false) }
+  }, [selectedCategory, currentPage, ui.loadFailed])
 
-  useEffect(() => {
-    fetchCategories()
-  }, [fetchCategories])
+  useEffect(() => { fetchCategories() }, [fetchCategories])
+  useEffect(() => { fetchPosts(); return () => { request.current++ } }, [fetchPosts])
+  const filtered = categories.filter(item => item.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  const shortTime = (value?: string) => value ? String(value).replace('T', ' ').slice(0, 16) : '—'
 
-  useEffect(() => {
-    fetchCategoryPosts(selectedCategory, currentPage)
-  }, [currentPage, fetchCategoryPosts, selectedCategory])
-
-  const shortTime = (value?: string) => {
-    if (!value) return '-'
-    const m = String(value).match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/)
-    return m ? `${m[1]} ${m[2]}` : String(value)
-  }
-
-  return (
-    <Row gutter={[16, 16]}>
-      <Col xs={24} md={8} lg={7}>
-        <Card
-          loading={loadingCategories}
-          title={t['content.categories.listTitle'] || '分类列表'}
-          bodyStyle={{ padding: 0 }}
-        >
-          {categories.length === 0 ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t['content.categories.empty'] || '暂无分类'} />
-          ) : (
-            <List
-              dataSource={categories}
-              renderItem={(item: CategoryItem) => (
-                <List.Item
-                  style={{
-                    cursor: 'pointer',
-                    padding: '12px 16px',
-                    backgroundColor: item.name === selectedCategory ? token.controlItemBgActive : 'transparent',
-                    borderInlineStart: `3px solid ${item.name === selectedCategory ? token.colorPrimary : 'transparent'}`,
-                  }}
-                  onClick={() => {
-                    setSelectedCategory(item.name)
-                    setCurrentPage(1)
-                  }}
-                >
-                  <Text strong={item.name === selectedCategory} style={item.name === selectedCategory ? { color: token.colorPrimary } : undefined}>{item.name}</Text>
-                  <Tag>{item.count}</Tag>
-                </List.Item>
-              )}
-            />
-          )}
-        </Card>
-      </Col>
-      <Col xs={24} md={16} lg={17}>
-        <Card
-          title={
-            selectedCategory
-              ? `${t['content.categories.postListTitle'] || '分类文章'}: ${selectedCategory}`
-              : (t['content.categories.postListTitle'] || '分类文章')
-          }
-        >
-          {!selectedCategory ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t['content.categories.selectHint'] || '请选择一个分类'} />
-          ) : (
-            <>
-            <Spin spinning={loadingPosts}>
-              {posts.length === 0 && !loadingPosts ? (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t['content.articleList.empty'] || '暂无文章'} />
-              ) : (
-                <div className={styles.rowList}>
-                  {posts.map((record) => (
-                    <ArticleRow
-                      key={record.documentId || record.permalink}
-                      title={record.title}
-                      cover={record.cover}
-                      onClick={() => navigate(`/post/${documentRouteId(record)}`)}
-                      titleExtra={
-                        <Tag color={record.isDraft ? 'default' : 'processing'} bordered={false}>
-                          {record.isDraft ? (t['content.categories.status.draft'] || '草稿') : (t['content.categories.status.published'] || '已发布')}
-                        </Tag>
-                      }
-                      meta={`${t['content.articleList.row.updatedAt'] || '更新于'} ${shortTime(record.updated || record.date)}`}
-                      actions={
-                        <Typography.Link onClick={() => navigate(`/post/${documentRouteId(record)}`)}>
-                          {t['content.articleList.btn.edit'] || '编辑'}
-                        </Typography.Link>
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-            </Spin>
-            {total > 0 && (
-              <div className={styles.footer}>
-                <Text type="secondary">
-                  {(t['content.articleList.footer.total'] || '共 {count} 篇文章').replace('{count}', String(total))}
-                </Text>
-                <Pagination
-                  current={currentPage}
-                  pageSize={pageSize}
-                  total={total}
-                  showSizeChanger={false}
-                  onChange={(page) => setCurrentPage(page)}
-                />
-              </div>
-            )}
-          </>
-          )}
-        </Card>
-      </Col>
-    </Row>
-  )
+  return <ManagementPage title={t['menu.categories'] || t['menu.content.categories'] || '分类管理'} description={ui.categoriesDescription}
+    count={ui.categoryCount.replace('{count}', String(categories.length))}
+    actions={<Button icon={<ReloadOutlined />} loading={loadingCategories || loadingPosts} onClick={() => { fetchCategories(); fetchPosts() }}>{ui.refresh}</Button>}>
+    <div className={styles.workspace}>
+      <aside className={styles.directory} aria-label={ui.categoryDirectory}>
+        <div className={styles.directoryHeading}><span>{ui.categoryDirectory}</span><span>{categories.length}</span></div>
+        <Input className={styles.search} prefix={<SearchOutlined />} placeholder={ui.categorySearch} aria-label={ui.categorySearch} allowClear value={query} onChange={e => setQuery(e.target.value)} />
+        {categoryError && <Alert type="error" showIcon message={categoryError} action={<Button size="small" onClick={fetchCategories}>{ui.retry}</Button>} />}
+        <Spin spinning={loadingCategories}>
+          <nav className={styles.categoryList}>
+            {filtered.map(item => <button key={item.name} className={styles.category} aria-pressed={selectedCategory === item.name} onClick={() => { setSelectedCategory(item.name); setCurrentPage(1) }}>
+              {selectedCategory === item.name ? <FolderOpenOutlined /> : <FolderOutlined />}<span className={styles.name}>{item.name}</span><span className={styles.number}>{item.count}</span>
+            </button>)}
+            {!loadingCategories && !categoryError && filtered.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={query ? ui.noResults : ui.noCategories} />}
+          </nav>
+        </Spin>
+        <p className={styles.hint}>{ui.categoryHint}</p>
+      </aside>
+      <div className={styles.content}>
+        <div className={styles.contentHeader}><div><FolderOpenOutlined /><h2>{selectedCategory || ui.categoryArticles}</h2></div><span>{ui.categoryPosts.replace('{count}', String(total))}</span></div>
+        {error ? <Alert type="error" showIcon message={error} action={<Button size="small" onClick={fetchPosts}>{ui.retry}</Button>} /> : <Spin spinning={loadingPosts}>
+          <div className={styles.posts}>
+            {posts.map(record => <ArticleRow key={record.documentId || record.permalink} title={record.title} cover={record.cover}
+              onClick={() => navigate(`/post/${documentRouteId(record)}`)}
+              titleExtra={<Tag bordered={false} color={record.isDraft ? 'default' : 'blue'}>{record.isDraft ? ui.draft : ui.published}</Tag>}
+              meta={`${t['content.articleList.row.updatedAt']} ${shortTime(record.updated || record.date)}`}
+              actions={<Button type="text" aria-label={`${t['content.articleList.btn.edit']} ${record.title}`} icon={<ArrowRightOutlined />} onClick={() => navigate(`/post/${documentRouteId(record)}`)} />} />)}
+            {!loadingPosts && !posts.length && <div className={shared.empty}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={selectedCategory ? t['content.articleList.empty'] : ui.selectCategory} /></div>}
+          </div>
+        </Spin>}
+        {total > 0 && <div className={shared.footer}><span>{ui.categoryPosts.replace('{count}', String(total))}</span><Pagination current={currentPage} pageSize={pageSize} total={total} showSizeChanger={false} onChange={setCurrentPage} responsive /></div>}
+      </div>
+    </div>
+  </ManagementPage>
 }

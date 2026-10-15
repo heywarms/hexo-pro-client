@@ -1,7 +1,7 @@
-import React, { useContext, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Button,
-  Card,
+  Alert,
   Col,
   Divider,
   Empty,
@@ -14,7 +14,7 @@ import {
   Select,
   Space,
   Spin,
-  Table,
+  Pagination,
   Tabs,
   Typography,
 } from 'antd'
@@ -28,17 +28,22 @@ import {
   FullscreenOutlined,
   FullscreenExitOutlined,
   MenuFoldOutlined,
-  MenuUnfoldOutlined
+  MenuUnfoldOutlined,
+  CodeOutlined,
+  FileTextOutlined,
+  SearchOutlined,
+  ReloadOutlined
 } from '@ant-design/icons'
 import service from '@/utils/api'
 import useLocale from '@/hooks/useLocale'
-import { GlobalContext } from '@/context'
 import useDeviceDetect from '@/hooks/useDeviceDetect'
 import styles from './style/index.module.less'
 import YamlEditor from './components/YamlEditor'
 import TemplateManager from './components/TemplateManager'
+import ManagementPage from '../components/ManagementPage'
+import managementLocale from '../components/ManagementPage/locale'
 
-const { Title, Text, Paragraph } = Typography
+const { Paragraph } = Typography
 const { Option } = Select
 const { TabPane } = Tabs
 
@@ -59,18 +64,20 @@ interface YamlTemplate {
 
 const YamlManager: React.FC = () => {
   const t = useLocale()
-  const { theme } = useContext(GlobalContext)
+  const ui = useLocale(managementLocale)
+  const [fileQuery, setFileQuery] = useState('')
+  const [draftContent, setDraftContent] = useState('')
+  const [saving, setSaving] = useState(false)
   const { isMobile } = useDeviceDetect()
 
   const [loading, setLoading] = useState(false)
+  const [fileError, setFileError] = useState('')
   const [yamlFiles, setYamlFiles] = useState<YamlFile[]>([])
   const [templates, setTemplates] = useState<YamlTemplate[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
   const [currentFile, setCurrentFile] = useState<YamlFile | null>(null)
-  const [currentTemplate, setCurrentTemplate] = useState<YamlTemplate | null>(null)
-  const [editMode, setEditMode] = useState<'file' | 'template' | null>(null)
   const [createFileVisible, setCreateFileVisible] = useState(false)
   const [createTemplateVisible, setCreateTemplateVisible] = useState(false)
   const [newFileName, setNewFileName] = useState('')
@@ -86,6 +93,7 @@ const YamlManager: React.FC = () => {
   // 获取YAML文件列表
   const fetchYamlFiles = async () => {
     setLoading(true)
+    setFileError('')
     try {
       const res = await service.get('/hexopro/api/yaml/list', {
         params: {
@@ -93,15 +101,26 @@ const YamlManager: React.FC = () => {
           pageSize: pageSize
         }
       })
-      setYamlFiles(res.data.files)
+      setYamlFiles(res.data.files || [])
+      setCurrentFile(current => current || res.data.files?.[0] || null)
       setTotal(res.data.total)
     } catch (error) {
-      message.error(t['content.yaml.fetchFailed'] || '获取YAML文件列表失败')
+      setFileError(t['content.yaml.fetchFailed'] || ui.loadFailed)
       console.error(error)
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => { setDraftContent(currentFile?.content || '') }, [currentFile?.path])
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (currentFile && draftContent !== currentFile.content) { event.preventDefault(); event.returnValue = '' }
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [currentFile, draftContent])
 
   // 获取模板列表
   const fetchTemplates = async () => {
@@ -204,17 +223,19 @@ const YamlManager: React.FC = () => {
 
   // 保存YAML文件
   const handleSaveFile = async (file: YamlFile, content: string) => {
+    setSaving(true)
     try {
       await service.post('/hexopro/api/yaml/update', {
         path: file.path,
         content: content
       })
+      setCurrentFile(current => current?.path === file.path ? { ...current, content } : current)
       message.success(t['content.yaml.saveSuccess'] || '保存成功')
       fetchYamlFiles()
     } catch (error) {
       message.error(t['content.yaml.saveFailed'] || '保存失败')
       console.error(error)
-    }
+    } finally { setSaving(false) }
   }
 
   // 删除YAML文件
@@ -226,7 +247,6 @@ const YamlManager: React.FC = () => {
       message.success(t['content.yaml.deleteSuccess'] || '删除成功')
       if (currentFile && currentFile.path === file.path) {
         setCurrentFile(null)
-        setEditMode(null)
       }
       fetchYamlFiles()
     } catch (error) {
@@ -278,7 +298,7 @@ const YamlManager: React.FC = () => {
   // 切换全屏编辑模式
   const toggleFullscreen = () => {
     setFullscreenMode(!fullscreenMode)
-    
+
     // 全屏模式下自动调整编辑器大小
     setTimeout(() => {
       const editor = document.getElementById('yaml-editor') as any
@@ -288,184 +308,52 @@ const YamlManager: React.FC = () => {
     }, 100)
   }
 
-  return (
-    <div className={styles.yamlManager}>
-      <div className={styles.header}>
-        <Title level={4}>{t['content.yaml.title'] || 'YAML 管理'}</Title>
-        <Space>
-          <Button
-            type="primary"
-            icon={<FileAddOutlined />}
-            onClick={() => setCreateFileVisible(true)}
-          >
-            {!isMobile && (t['content.yaml.createFile'] || '新建文件')}
-          </Button>
-          <Button
-            icon={<SettingOutlined />}
-            onClick={() => setCreateTemplateVisible(true)}
-          >
-            {!isMobile && (t['content.yaml.createTemplate'] || '新建模板')}
-          </Button>
-        </Space>
-      </div>
+  const hasChanges = !!currentFile && draftContent !== currentFile.content
+  const chooseFile = (file: YamlFile) => {
+    if (file.path === currentFile?.path) return
+    const open = () => { setCurrentFile(file); setDraftContent(file.content); if (isMobile) setFileListCollapsed(true) }
+    if (hasChanges) Modal.confirm({title:ui.discardTitle,content:ui.discardDescription,okText:ui.discard,cancelText:t['universal.cancel'],onOk:open})
+    else open()
+  }
+  const filteredFiles = yamlFiles.filter(file => `${file.name} ${file.path}`.toLowerCase().includes(fileQuery.trim().toLowerCase()))
 
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
-        <TabPane tab={t['content.yaml.files'] || '文件管理'} key="files">
-          <Row gutter={16} className={fullscreenMode ? styles.fullscreenContainer : ''}>
-            {/* 文件列表列 */}
-            {(!fileListCollapsed || !editMode) && (
-              <Col 
-                xs={24} 
-                sm={24} 
-                md={editMode === 'file' ? (fileListCollapsed ? 0 : 8) : 24} 
-                lg={editMode === 'file' ? (fileListCollapsed ? 0 : 8) : 24}
-                xl={editMode === 'file' ? (fileListCollapsed ? 0 : 8) : 24}
-                className={styles.fileListColumn}
-              >
-                <Spin spinning={loading}>
-                  {yamlFiles.length > 0 ? (
-                    <div>
-                      <Table
-                        dataSource={yamlFiles}
-                        rowKey="path"
-                        size={isMobile ? "small" : "middle"}
-                        pagination={{
-                          current: currentPage,
-                          pageSize: pageSize,
-                          total: total,
-                          onChange: handlePageChange,
-                          showSizeChanger: true,
-                          size: isMobile ? "small" : "default"
-                        }}
-                        scroll={{ x: isMobile ? 500 : undefined }}
-                      >
-                        <Table.Column
-                          title={t['content.yaml.fileName'] || '文件名'}
-                          dataIndex="name"
-                          key="name"
-                          render={(text, record: YamlFile) => (
-                            <a onClick={() => {
-                              setCurrentFile(record)
-                              setEditMode('file')
-                            }}>{text}</a>
-                          )}
-                        />
-                        {!isMobile && (
-                          <Table.Column
-                            title={t['content.yaml.filePath'] || '路径'}
-                            dataIndex="path"
-                            key="path"
-                            ellipsis={true}
-                          />
-                        )}
-                        {!isMobile && (
-                          <Table.Column
-                            title={t['content.yaml.lastModified'] || '最后修改时间'}
-                            dataIndex="lastModified"
-                            key="lastModified"
-                          />
-                        )}
-                        <Table.Column
-                          title={t['content.yaml.actions'] || '操作'}
-                          key="actions"
-                          render={(_, record: YamlFile) => (
-                            <Space>
-                              <Button
-                                type="text"
-                                icon={<EditOutlined />}
-                                onClick={() => {
-                                  setCurrentFile(record)
-                                  setEditMode('file')
-                                }}
-                              />
-                              <Popconfirm
-                                title={t['content.yaml.deleteConfirm'] || '确定要删除这个文件吗？'}
-                                onConfirm={() => handleDeleteFile(record)}
-                                okText={t['content.yaml.ok'] || '确定'}
-                                cancelText={t['content.yaml.cancel'] || '取消'}
-                              >
-                                <Button
-                                  type="text"
-                                  danger
-                                  icon={<DeleteOutlined />}
-                                />
-                              </Popconfirm>
-                            </Space>
-                          )}
-                        />
-                      </Table>
-                    </div>
-                  ) : (
-                    <Empty
-                      description={t['content.yaml.noFiles'] || '暂无YAML文件'}
-                      className={styles.empty}
-                    />
-                  )}
-                </Spin>
-              </Col>
-            )}
-            
-            {/* 编辑器列 */}
-            {editMode === 'file' && currentFile && (
-              <Col 
-                xs={24} 
-                sm={24} 
-                md={fileListCollapsed ? 24 : 16} 
-                lg={fileListCollapsed ? 24 : 16}
-                xl={fileListCollapsed ? 24 : 16}
-                className={styles.editorColumn}
-              >
-                <Card
-                  title={currentFile.name}
-                  extra={
-                    <Space>
-                      {!isMobile && (
-                        <Button
-                          icon={fileListCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                          onClick={toggleFileList}
-                          title={fileListCollapsed ? '展开文件列表' : '收起文件列表'}
-                        />
-                      )}
-                      <Button
-                        icon={fullscreenMode ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                        onClick={toggleFullscreen}
-                        title={fullscreenMode ? '退出全屏' : '全屏编辑'}
-                      />
-                      <Button
-                        type="primary"
-                        icon={<SaveOutlined />}
-                        onClick={() => {
-                          if (currentFile) {
-                            const editor = document.getElementById('yaml-editor') as any
-                            if (editor && editor.getValue) {
-                              handleSaveFile(currentFile, editor.getValue())
-                            }
-                          }
-                        }}
-                      >
-                        {!isMobile && (t['content.yaml.save'] || '保存')}
-                      </Button>
-                    </Space>
-                  }
-                  className={fullscreenMode ? styles.fullscreenCard : ''}
-                >
-                  <YamlEditor
-                    id="yaml-editor"
-                    initialValue={currentFile.content}
-                    height={fullscreenMode ? "calc(100vh - 120px)" : "500px"}
-                  />
-                </Card>
-              </Col>
-            )}
-          </Row>
+  return (
+    <ManagementPage className={styles.yamlManager} title={ui.yamlTitle} description={ui.yamlDescription}
+      count={ui.fileCount.replace('{count}',String(total))}
+      actions={<><Button icon={<SettingOutlined />} onClick={()=>setCreateTemplateVisible(true)}>{t['content.yaml.createTemplate']}</Button><Button type="primary" icon={<FileAddOutlined />} onClick={()=>setCreateFileVisible(true)}>{t['content.yaml.createFile']}</Button></>}>
+      <Tabs activeKey={activeTab} onChange={setActiveTab} className={styles.tabs}>
+        <TabPane tab={t['content.yaml.files']} key="files">
+          <div className={`${styles.workspace} ${fullscreenMode?styles.fullscreenContainer:''}`} data-collapsed={fileListCollapsed}>
+            {!fileListCollapsed && <aside className={styles.fileDirectory} aria-label={ui.fileDirectory}>
+              <div className={styles.directoryHeader}><strong>{ui.fileDirectory}</strong><Button type="text" size="small" icon={<ReloadOutlined />} aria-label={ui.refresh} loading={loading} onClick={fetchYamlFiles} /></div>
+              <Input className={styles.fileSearch} prefix={<SearchOutlined />} placeholder={ui.searchFiles} aria-label={ui.searchFiles} value={fileQuery} allowClear onChange={e=>setFileQuery(e.target.value)} />
+              {fileError && <Alert type="error" showIcon message={fileError} action={<Button size="small" onClick={fetchYamlFiles}>{ui.retry}</Button>} />}
+              <Spin spinning={loading}>
+                <div className={styles.fileList}>
+                  {filteredFiles.map(file=><button key={file.path} className={styles.fileItem} aria-pressed={currentFile?.path===file.path} onClick={()=>chooseFile(file)}><FileTextOutlined /><span><strong>{file.name}</strong><small>{file.path}</small></span>{currentFile?.path===file.path && <span className={styles.activeDot} />}</button>)}
+                  {!loading && !fileError && filteredFiles.length===0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={fileQuery?ui.fileSearchEmpty:t['content.yaml.noFiles']} />}
+                </div>
+              </Spin>
+              {total>pageSize && <div className={styles.filePagination}><Pagination current={currentPage} pageSize={pageSize} total={total} onChange={handlePageChange} simple showSizeChanger={false} /></div>}
+            </aside>}
+            <div className={styles.editorColumn}>
+              <div className={styles.editorToolbar}>
+                <div className={styles.editorFile}><Button type="text" icon={fileListCollapsed?<MenuUnfoldOutlined />:<MenuFoldOutlined />} onClick={toggleFileList} aria-label={fileListCollapsed?ui.expandFiles:ui.collapseFiles} title={fileListCollapsed?ui.expandFiles:ui.collapseFiles} /><CodeOutlined /><span title={currentFile?.path}>{currentFile?.name || ui.chooseFile}</span>{hasChanges && <span className={styles.unsavedDot} />}</div>
+                <div className={styles.editorActions}>
+                  {currentFile && <Popconfirm title={t['content.yaml.deleteConfirm']} onConfirm={()=>handleDeleteFile(currentFile)} okText={t['content.yaml.ok']} cancelText={t['content.yaml.cancel']}><Button type="text" danger icon={<DeleteOutlined />} aria-label={t['universal.delete']} disabled={saving} /></Popconfirm>}
+                  <Button type="text" icon={fullscreenMode?<FullscreenExitOutlined />:<FullscreenOutlined />} onClick={toggleFullscreen} title={fullscreenMode?ui.exitFullscreen:ui.fullscreen} aria-label={fullscreenMode?ui.exitFullscreen:ui.fullscreen} />
+                  <Button type="primary" icon={<SaveOutlined />} loading={saving} disabled={!currentFile || !hasChanges} onClick={()=>currentFile && handleSaveFile(currentFile,draftContent)}>{t['content.yaml.save']}</Button>
+                </div>
+              </div>
+              <div className={styles.editorBody}>
+                {currentFile ? <YamlEditor key={currentFile.path} id="yaml-editor" initialValue={draftContent} height="100%" onChange={setDraftContent} /> : <div className={styles.editorEmpty}><CodeOutlined /><h3>{ui.chooseFile}</h3><p>{ui.chooseFileHint}</p></div>}
+              </div>
+              <div className={styles.editorStatus}><span>{currentFile?.path || ui.fileDirectory}</span><span>{hasChanges?ui.unsaved:ui.saved}<span className={styles.statusDivider}>·</span>YAML<span className={styles.statusDivider}>·</span>UTF-8</span></div>
+            </div>
+          </div>
         </TabPane>
-        <TabPane tab={t['content.yaml.templates'] || '模板管理'} key="templates">
-          <TemplateManager
-            templates={templates}
-            yamlFiles={yamlFiles}
-            onApplyTemplate={handleApplyTemplate}
-            onRefresh={fetchTemplates}
-          />
+        <TabPane tab={t['content.yaml.templates']} key="templates">
+          <div className={styles.templates}><TemplateManager templates={templates} yamlFiles={yamlFiles} onApplyTemplate={handleApplyTemplate} onRefresh={fetchTemplates} /></div>
         </TabPane>
       </Tabs>
 
@@ -634,7 +522,7 @@ const YamlManager: React.FC = () => {
           </Form.List>
         </Form>
       </Modal>
-    </div>
+    </ManagementPage>
   )
 }
 

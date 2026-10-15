@@ -23,10 +23,11 @@ import { openDesktopLink } from "@/utils/desktopUtils"
 import SettingIcon from '../../assets/setting.svg'
 
 type NavbarProps = {
+    contentPage?: boolean;
     style?: React.CSSProperties; // 增加style属性
 }
 
-export default function Navbar({ style }: NavbarProps) { // 使用props中的style属性
+export default function Navbar({ style, contentPage = false }: NavbarProps) { // 使用props中的style属性
     const navigate = useNavigate()
     const userInfo = useSelector((state: GlobalState) => state.userInfo)
     const { theme, setTheme, setLang } = useContext(GlobalContext)
@@ -311,7 +312,7 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
 
     // 内容页“新建文章”按钮通过事件复用这里的新建流程
     useEffect(() => {
-        const onRequestNewPost = () => handleCreateBlog({ key: '1' } as any)
+        const onRequestNewPost = (event: Event) => handleCreateBlog({ key: (event as CustomEvent).detail?.target === 'Page' ? '2' : '1' } as any)
         window.addEventListener(NEW_POST_EVENT, onRequestNewPost)
         return () => window.removeEventListener(NEW_POST_EVENT, onRequestNewPost)
     }, [])
@@ -401,11 +402,11 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
                         onClick={theme === 'light' ? () => setTheme('dark') : () => setTheme('light')}
                     />
                 </li>
-                <li >
+                {!contentPage && <li >
                     <Dropdown menu={{ items: writeDropList, onClick: handleCreateBlog }}>
                         <Button type="primary" className={`${styles.customButtonHover} ${styles[theme]}`}>{locale['navbar.create']}<DownOutlined /></Button>
                     </Dropdown>
-                </li>
+                </li>}
                 {
                     userInfo && <li>
                         <Dropdown menu={{ items: settingDropList, onClick: handleLogout }}>

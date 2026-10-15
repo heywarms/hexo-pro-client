@@ -37,6 +37,8 @@
 .actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; margin-left: auto; }
 .aiButton svg { width: 16px; height: 16px; path { fill: currentColor; } }
 .actionLabel { font-size: 13px; }
+.propertyToggle[aria-expanded='true'] { color: #315fc4 !important; background: #edf3ff; }
+:global([data-theme='dark']) .propertyToggle[aria-expanded='true'] { color: #91b3ff !important; background: #263754; }
 .actionDivider { height: 18px; width: 1px; background: var(--editor-line); margin: 0 8px; }
 .publishButton { box-shadow: none; font-size: 13px; }
 .unpublishButton { background: var(--editor-paper); color: var(--editor-text); border-color: var(--editor-line-strong); box-shadow: none; font-size: 13px; }

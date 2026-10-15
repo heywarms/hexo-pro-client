@@ -1,112 +1,56 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useContext, useEffect, useRef } from 'react'
 import * as monaco from 'monaco-editor'
+import { GlobalContext } from '@/context'
 
-interface YamlEditorProps {
-  id: string;
-  initialValue: string;
-  height: string;
-  onChange?: (value: string) => void;
-  readOnly?: boolean; // 新增
-}
+type Props = { id: string; initialValue: string; height: string; onChange?: (value: string) => void; readOnly?: boolean }
 
-const YamlEditor: React.FC<YamlEditorProps> = ({ id, initialValue, height, onChange, readOnly = false }) => {
+export default function YamlEditor({ id, initialValue, height, onChange, readOnly = false }: Props) {
+  const { theme } = useContext(GlobalContext)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [value, setValue] = useState(initialValue)
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
-  // 初始化编辑器
   useEffect(() => {
-    if (containerRef.current && !editorRef.current) {
-      // 配置编辑器
-      editorRef.current = monaco.editor.create(containerRef.current, {
-        value: initialValue,
-        language: 'yaml',
-        theme: 'vs',
-        automaticLayout: true,
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        lineNumbers: 'on',
-        wordWrap: 'on',
-        tabSize: 2,
-        fontSize: window.innerWidth <= 768 ? 12 : 14, // 移动端字体更小
-        readOnly: readOnly // 新增
-      })
-
-      // 添加编辑器内容变化事件监听
-      if (onChange) {
-        editorRef.current.onDidChangeModelContent(() => {
-          const newValue = editorRef.current?.getValue() || ''
-          setValue(newValue)
-          onChange(newValue)
-        })
-      }
-
-      // 为编辑器添加getValue方法，方便外部获取内容
-      (document.getElementById(id) as any).getValue = () => {
-        return editorRef.current?.getValue() || ''
-      };
-      
-      // 为编辑器添加layout方法，方便外部调整大小
-      (document.getElementById(id) as any).layout = () => {
-        if (editorRef.current) {
-          editorRef.current.layout()
-        }
-      }
-      
-      // 监听窗口大小变化，自动调整编辑器大小
-      const handleResize = () => {
-        if (editorRef.current) {
-          editorRef.current.layout()
-          // 根据屏幕大小调整字体
-          editorRef.current.updateOptions({
-            fontSize: window.innerWidth <= 768 ? 12 : 14
-          })
-        }
-      }
-      
-      window.addEventListener('resize', handleResize)
-      
-      return () => {
-        window.removeEventListener('resize', handleResize)
-      }
-    }
-
+    const container = containerRef.current as HTMLDivElement & { getValue?: () => string; layout?: () => void }
+    if (!container) return
+    const editor = monaco.editor.create(container, {
+      value: initialValue || '', language: 'yaml', automaticLayout: true,
+      minimap: { enabled: false }, scrollBeyondLastLine: false, wordWrap: 'on',
+      lineNumbers: 'on', lineNumbersMinChars: 3, tabSize: 2, fontSize: 14, lineHeight: 24,
+      fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", monospace',
+      padding: { top: 18, bottom: 18 }, renderLineHighlight: 'gutter',
+      scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+      overviewRulerLanes: 0, readOnly, ariaLabel: 'YAML editor',
+    })
+    editorRef.current = editor
+    const subscription = editor.onDidChangeModelContent(() => onChangeRef.current?.(editor.getValue()))
+    container.getValue = () => editor.getValue()
+    container.layout = () => editor.layout()
     return () => {
-      // 组件卸载时清理编辑器实例
-      if (editorRef.current) {
-        try {
-          // 判断编辑器是否已经被销毁
-          if (editorRef.current.getModel()) {
-            editorRef.current.dispose()
-          }
-          editorRef.current = null
-        } catch (error) {
-          console.error('Error disposing Monaco editor:', error)
-        }
-      }
+      subscription.dispose()
+      const model = editor.getModel()
+      editor.dispose()
+      model?.dispose()
+      editorRef.current = null
+      delete container.getValue
+      delete container.layout
     }
-  }, [id]) // 只依赖id，避免频繁销毁重建
+  }, [id])
 
-  // 处理initialValue变化
   useEffect(() => {
-    if (editorRef.current && initialValue !== value) {
-      // 使用setValue更新编辑器内容，避免重新创建编辑器实例
-      editorRef.current.setValue(initialValue)
-      setValue(initialValue)
-    }
+    const dark = theme === 'dark'
+    monaco.editor.defineTheme('hexopro-yaml', {
+      base: dark ? 'vs-dark' : 'vs', inherit: true, rules: [],
+      colors: { 'editor.background': dark ? '#1d1f23' : '#ffffff', 'editorLineNumber.foreground': dark ? '#7d8797' : '#9aa3b2', 'editor.lineHighlightBackground': dark ? '#24282f' : '#f7f9fc' },
+    })
+    monaco.editor.setTheme('hexopro-yaml')
+  }, [theme])
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.getValue() !== (initialValue || '')) editorRef.current.setValue(initialValue || '')
   }, [initialValue])
-  
-  // 处理height变化
-  useEffect(() => {
-    if (editorRef.current && containerRef.current) {
-      containerRef.current.style.height = height
-      editorRef.current.layout()
-    }
-  }, [height])
+  useEffect(() => { editorRef.current?.updateOptions({ readOnly }) }, [readOnly])
+  useEffect(() => { editorRef.current?.layout() }, [height])
 
-  return (
-    <div id={id} ref={containerRef} style={{ height, width: '100%', border: '1px solid #d9d9d9', borderRadius: '2px' }} />
-  )
+  return <div id={id} ref={containerRef} style={{ height, width: '100%', minHeight: 0 }} />
 }
-
-export default YamlEditor

@@ -1,75 +1,46 @@
-.imageManager {
-  padding: 24px;
-
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-
-    @media (max-width: 576px) {
-      flex-direction: column;
-      align-items: flex-start;
-
-      :global(.ant-space) {
-        margin-top: 16px;
-      }
-    }
-  }
-
-  .folderSelector {
-    display: flex;
-    align-items: center;
-    margin-bottom: 24px;
-
-    @media (max-width: 576px) {
-      flex-direction: column;
-      align-items: flex-start;
-
-      :global(.ant-select) {
-        margin-left: 0 !important;
-        margin-top: 8px;
-        width: 100% !important;
-      }
-    }
-  }
-
-  .imageGrid {
-    margin-bottom: 24px;
-  }
-
-  .imageContainer {
-    height: 160px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    background-color: #f5f5f5;
-
-    img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-    }
-  }
-
-  .selectedCard {
-    border: 2px solid #1677ff;
-  }
-
-  .empty {
-    margin: 48px 0;
-  }
-
-  .pagination {
-    display: flex;
-    justify-content: center;
-    margin-top: 24px;
-  }
-
-  .uploadForm {
-    .formItem {
-      margin-bottom: 16px;
-    }
-  }
+.workspace { display: grid; grid-template-columns: 210px minmax(0,1fr); border-top: 1px solid var(--manage-line); min-height: 540px; }
+.sidebar { padding: 22px 20px 0 0; border-right: 1px solid var(--manage-line); min-width: 0; }
+.sidebarLabel { color: var(--manage-muted); font-size: 12px; margin-bottom: 12px; }
+.storageSelect { width: 100%; margin-bottom: 28px; }
+.folderList { display: flex; flex-direction: column; gap: 6px; }
+.folderList button, .trashFolder { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 42px; padding: 11px; border: none; border-radius: 7px; background: transparent; color: var(--manage-muted); font: inherit; text-align: left; cursor: pointer;
+  > span:last-child { overflow-wrap: anywhere; min-width: 0; }
+  :global(.anticon) { font-size: 17px; }
+  &:hover { background: var(--manage-surface); }
+  &[aria-pressed='true'] { color: var(--manage-accent); background: var(--manage-accent-soft); font-weight: 500; }
 }
+.trashFolder { margin-top: 24px; }
+.gallery { padding: 22px 0 0 24px; min-width: 0; }
+.galleryHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.folderTitle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; min-width: 0; h2 { font-size: 19px; margin: 0; color: var(--manage-text); overflow-wrap: anywhere; } > span { font-size: 12px; color: var(--manage-muted); white-space: nowrap; } }
+.galleryActions { display: flex; flex-shrink: 0; }
+.galleryToolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 18px 0 22px; > :global(.ant-checkbox-wrapper) { white-space: nowrap; color: var(--manage-muted); font-size: 12px; } }
+.search { max-width: 320px; background: var(--manage-surface); border-color: transparent; }
+.imageGrid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 18px; }
+.imageCard { min-width: 0; overflow: hidden; border: 1px solid var(--manage-line); border-radius: 10px; background: var(--manage-paper); transition: border-color 140ms ease; &:hover { border-color: var(--manage-accent); } }
+.selectedCard { border-color: var(--manage-accent); box-shadow: 0 0 0 1px var(--manage-accent); }
+.imageContainer { height: 152px; position: relative; background: var(--manage-surface); overflow: hidden; :global(.ant-image) { width: 100%; height: 100%; } :global(.ant-image .ant-image-img) { display: block; width: 100%; height: 100%; object-fit: cover; } }
+.previewButton { padding: 0; border: 0; width: 100%; height: 100%; display: block; background: transparent; cursor: zoom-in; }
+.imageCheckbox { position: absolute; left: 10px; top: 10px; background: var(--manage-paper); padding: 3px; border-radius: 5px; box-shadow: 0 1px 6px #00000015; }
+.imageDetails { padding: 12px 12px 6px; }
+.imageName { font-size: 13px; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.imageMeta { display: flex; justify-content: space-between; gap: 4px; margin-top: 6px; font-size: 11px; color: var(--manage-muted); font-variant-numeric: tabular-nums; }
+.imageActions { display: flex; justify-content: space-between; padding-top: 8px; margin-top: 10px; border-top: 1px solid var(--manage-line); :global(.ant-btn) { color: var(--manage-muted); font-size: 12px; height: 30px; } }
+.uploadForm .formItem { margin-bottom: 16px; }
+@media (max-width: 1100px) { .workspace { grid-template-columns: 180px minmax(0,1fr); } .gallery { padding-left: 20px; } .imageGrid { grid-template-columns: repeat(auto-fill,minmax(170px,1fr)); gap: 14px; } }
+@media (max-width: 768px) {
+  .workspace { grid-template-columns: minmax(0,1fr); }
+  .sidebar { border-right: 0; border-bottom: 1px solid var(--manage-line); padding: 16px 0; }
+  .sidebarLabel { display: none; } .storageSelect { max-width: 190px; margin-bottom: 14px; }
+  .folderList { flex-direction: row; overflow-x: auto; padding-bottom: 4px; button { width: auto; flex-shrink: 0; } }
+  .trashFolder { margin-top: 6px; width: auto; }
+  .gallery { padding: 18px 0 0; }
+  .galleryToolbar { flex-wrap: wrap; margin-bottom: 16px; }
+  .search { max-width: none; }
+  .imageGrid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+  .imageContainer { height: 132px; }
+  .imageDetails { padding: 10px 9px 5px; }
+  .imageMeta { flex-wrap: wrap; font-size: 10px; }
+  .imageActions :global(.ant-btn) { min-height: 36px; padding-inline: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .imageCard { transition: none; } }

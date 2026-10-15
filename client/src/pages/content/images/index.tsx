@@ -1,8 +1,10 @@
-import React, { useContext, useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   Button,
-  Card,
-  Col,
+  Alert,
+  Checkbox,
+  Dropdown,
+  Tooltip,
   Empty,
   Image,
   Input,
@@ -10,9 +12,7 @@ import {
   Modal,
   Pagination,
   Popconfirm,
-  Row,
   Select,
-  Space,
   Spin,
   Typography,
   Upload
@@ -22,6 +22,10 @@ import {
   DeleteOutlined,
   EditOutlined,
   EllipsisOutlined,
+  FolderOutlined,
+  PictureOutlined,
+  SearchOutlined,
+  ReloadOutlined,
   FolderAddOutlined,
   InboxOutlined,
   ScissorOutlined,
@@ -32,12 +36,13 @@ import { RcFile } from 'antd/lib/upload'
 import type { UploadFile } from 'antd/es/upload/interface'
 import service from '@/utils/api'
 import useLocale from '@/hooks/useLocale'
-import { GlobalContext } from '@/context'
 import useDeviceDetect from '@/hooks/useDeviceDetect'
 import styles from './style/index.module.less'
+import ManagementPage from '../components/ManagementPage'
+import managementLocale from '../components/ManagementPage/locale'
+import shared from '../components/ManagementPage/style.module.less'
 
-const { Title, Text } = Typography
-const { Dragger } = Upload
+const { Text } = Typography
 const { Option } = Select
 
 interface ImageItem {
@@ -63,7 +68,10 @@ function appendCacheBust(url: string, enabled: boolean, timestamp: number) {
 
 const ImageManager: React.FC = () => {
   const t = useLocale()
-  const { theme } = useContext(GlobalContext)
+  const ui = useLocale(managementLocale)
+  const [query, setQuery] = useState('')
+  const [loadError, setLoadError] = useState('')
+  const imageRequest = useRef(0)
   const { isMobile } = useDeviceDetect()
 
   const [loading, setLoading] = useState(false)
@@ -115,7 +123,9 @@ const ImageManager: React.FC = () => {
 
   // 获取图片列表
   const fetchImages = async () => {
+    const revision = ++imageRequest.current
     setLoading(true)
+    setLoadError('')
     try {
       const res = await service.get('/hexopro/api/images/list', {
         params: {
@@ -139,12 +149,14 @@ const ImageManager: React.FC = () => {
         }))
       }
 
+      if (revision !== imageRequest.current) return
       setData(processedData)
+      if (currentPage > 1 && currentPage > Math.ceil(processedData.total / pageSize)) setCurrentPage(Math.max(1, Math.ceil(processedData.total / pageSize)))
     } catch (error) {
-      message.error(t['content.images.fetchFailed'] || '获取图片列表失败')
+      if (revision === imageRequest.current) setLoadError(t['content.images.fetchFailed'] || '获取图片列表失败')
       console.error(error)
     } finally {
-      setLoading(false)
+      if (revision === imageRequest.current) setLoading(false)
     }
   }
 
@@ -152,7 +164,6 @@ const ImageManager: React.FC = () => {
   const fetchStorageConfig = async () => {
     try {
       const res = await service.get('/hexopro/api/images/config/get')
-      console.log(res)
       if (res?.data?.data?.type) {
         // 若默认类型配置不完整，不采用，保持当前选择
         const cfg = res?.data?.data || {}
@@ -176,14 +187,12 @@ const ImageManager: React.FC = () => {
       }
       const storages: string[] = []
       const cfg = res?.data?.data || {}
-      console.log(cfg)
       // 判定已配置可用的图床
       storages.push('local')
       if (cfg.aliyun && (cfg.aliyun.bucket && (cfg.aliyun.domain || (cfg.aliyun.region && cfg.aliyun.accessKeyId && cfg.aliyun.accessKeySecret)))) {
         storages.push('aliyun')
       }
       if (cfg.qiniu && (cfg.qiniu.bucket && cfg.qiniu.domain && cfg.qiniu.accessKey && cfg.qiniu.secretKey)) {
-        console.log('qiniu')
         storages.push('qiniu')
       }
       if (cfg.tencent && (cfg.tencent.bucket && (cfg.tencent.domain || (cfg.tencent.region && cfg.tencent.secretId && cfg.tencent.secretKey)))) {
@@ -361,249 +370,98 @@ const ImageManager: React.FC = () => {
   // 初始加载和依赖变化时获取数据
   useEffect(() => {
     fetchImages()
+    return () => { imageRequest.current++ }
   }, [currentPage, pageSize, currentFolder, storageType])
 
   useEffect(() => {
     fetchStorageConfig()
   }, [])
 
+  useEffect(() => { setSelectedKeys([]) }, [currentFolder, storageType, currentPage, query])
+
   // 响应式调整每页显示数量
   useEffect(() => {
     setPageSize(isMobile ? 8 : 12)
   }, [isMobile])
 
+  const visibleImages = data.images.filter(image => image.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+  const selectedAll = visibleImages.length > 0 && visibleImages.every(image => selectedKeys.includes(image.path))
+  const folderLabel = currentFolder === 'trash' ? ui.imageTrash : currentFolder || ui.allImages
+  const confirmBatchDelete = () => Modal.confirm({
+    title: ui.batchDelete || '批量删除',
+    content: `${t['content.images.deleteConfirm'] || '确定删除所选图片？'} (${selectedKeys.length})`,
+    okButtonProps: { danger: true }, okText: t['universal.delete'], cancelText: t['universal.cancel'],
+    onOk: async () => {
+      await service.post('/hexopro/api/images/delete/batch', { paths: selectedKeys, storageType })
+      message.success(t['content.images.deleteSuccess'] || '删除成功')
+      setSelectedKeys([])
+      await fetchImages()
+    },
+  })
+
   return (
-    <div className={styles.imageManager}>
-      <div className={styles.header}>
-        <Title level={4}>{t['content.images.title'] || '图床管理'}</Title>
-        <Space>
-          <Button
-            type="primary"
-            icon={<UploadOutlined />}
-            onClick={() => setUploadVisible(true)}
-          >
-            {t['content.images.upload'] || '上传图片'}
-          </Button>
-          {currentFolder !== 'trash' && (
-            <Button
-              icon={<DeleteOutlined />}
-              onClick={() => setCleanupVisible(true)}
-            >
-              {t['content.images.cleanupUnused'] || '清理未引用图片'}
-            </Button>
-          )}
-          <Button
-            icon={<FolderAddOutlined />}
-            onClick={() => setCreateFolderVisible(true)}
-          >
-            {t['content.images.createFolder'] || '新建文件夹'}
-          </Button>
-        </Space>
-      </div>
-
-      <div className={styles.folderSelector}>
-        <Text strong style={{ marginRight: 8 }}>{t['content.images.currentFolder'] || '当前文件夹'}:</Text>
-        {currentFolder !== 'trash' ? (
-          <Select
-            style={{ width: isMobile ? 200 : 300, marginLeft: 8 }}
-            value={currentFolder}
-            onChange={handleFolderChange}
-            placeholder={t['content.images.selectFolder'] || '选择文件夹'}
-          >
-            <Option value="">{t['content.images.rootFolder'] || '根目录'}</Option>
-            {data.folders.filter(f => String(f).toLowerCase() !== 'trash').map(folder => (
-              <Option key={folder} value={folder}>{folder}</Option>
-            ))}
-          </Select>
-        ) : (
-          <Text type="secondary" style={{ marginLeft: 8 }}>trash</Text>
-        )}
-        <div style={{ flex: 1 }} />
-        <Text strong style={{ marginLeft: 16, marginRight: 8 }}>{t['content.images.storageType'] || '图床'}:</Text>
-        <Select
-          style={{ width: isMobile ? 140 : 180 }}
-          value={storageType}
-          onChange={(v) => { setStorageType(v); setCurrentPage(1) }}
-        >
-          {availableStorages.map(s => (
-            <Option key={s} value={s}>{s}</Option>
-          ))}
-        </Select>
-        <Button
-          style={{ marginLeft: 8 }}
-          onClick={() => { setCurrentFolder(currentFolder === 'trash' ? '' : 'trash'); setCurrentPage(1) }}
-        >
-          {currentFolder === 'trash' ? (t['content.images.back'] || '返回') : (t['content.images.trash'] || '回收站')}
-        </Button>
-        <Button
-          danger
-          style={{ marginLeft: 12 }}
-          disabled={currentFolder === 'trash'}
-          onClick={() => setDeleteFolderVisible(true)}
-        >
-          {t['content.images.deleteFolder'] || '删除文件夹'}
-        </Button>
-      </div>
-
-      <Spin spinning={loading}>
-        {data.images.length > 0 ? (
-          <>
-            <Row gutter={[16, 16]} className={styles.imageGrid}>
-              {data.images.map(image => (
-                <Col xs={12} sm={8} md={6} lg={6} xl={4} key={image.url}>
-                  <Card
-                    hoverable
-                    className={selectedKeys.includes(image.path) ? styles.selectedCard : ''}
-                    onClick={() => toggleSelect(image.path)}
-                    cover={
-                      <div className={styles.imageContainer}>
-                        <Image
-                          key={isLocal ? image.path : image.url}
-                          src={isLocal ? image.path : image.url}
-                          alt={image.name}
-                          preview={false}
-                          fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3PTWBSGcbGzM6GCKqlIBRV0dHRJFarQ0eUT8LH4BnRU0NHR0UEFVdIlFRV7TzRksomPY8uykTk/zewQfKw/9znv4yvJynLv4uLiV2dBoDiBf4qP3/ARuCRABEFAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghgg0Aj8i0JO4OzsrPv69Wv+hi2qPHr0qNvf39+iI97soRIh4f3z58/u7du3SXX7Xt7Z2enevHmzfQe+oSN2apSAPj09TSrb+XKI/f379+08+A0cNRE2ANkupk+ACNPvkSPcAAEibACyXUyfABGm3yNHuAECRNgAZLuYPgEirKlHu7u7XdyytGwHAd8jjNyng4OD7vnz51dbPT8/7z58+NB9+/bt6jU/TI+AGWHEnrx48eJ/EsSmHzx40L18+fLyzxF3ZVMjEyDCiEDjMYZZS5wiPXnyZFbJaxMhQIQRGzHvWR7XCyOCXsOmiDAi1HmPMMQjDpbpEiDCiL358eNHurW/5SnWdIBbXiDCiA38/Pnzrce2YyZ4//59F3ePLNMl4PbpiL2J0L979+7yDtHDhw8vtzzvdGnEXdvUigSIsCLAWavHp/+qM0BcXMd/q25n1vF57TYBp0a3mUzilePj4+7k5KSLb6gt6ydAhPUzXnoPR0dHl79WGTNCfBnn1uvSCJdegQhLI1vvCk+fPu2ePXt2tZOYEV6/fn31dz+shwAR1sP1cqvLntbEN9MxA9xcYjsxS1jWR4AIa2Ibzx0tc44fYX/16lV6NDFLXH+YL32jwiACRBiEbf5KcXoTIsQSpzXx4N28Ja4BQoK7rgXiydbHjx/P25TaQAJEGAguWy0+2Q8PD6/Ki4R8EVl+bzBOnZY95fq9rj9zAkTI2SxdidBHqG9+skdw43borCXO/ZcJdraPWdv22uIEiLA4q7nvvCug8WTqzQveOH26fodo7g6uFe/a17W3+nFBAkRYENRdb1vkkz1CH9cPsVy/jrhr27PqMYvENYNlHAIesRiBYwRy0V+8iXP8+/fvX11Mr7L7ECueb/r48eMqm7FuI2BGWDEG8cm+7G3NEOfmdcTQw4h9/55lhm7DekRYKQPZF2ArbXTAyu4kDYB2YxUzwg0gi/41ztHnfQG26HbGel/crVrm7tNY+/1btkOEAZ2M05r4FB7r9GbAIdxaZYrHdOsgJ/wCEQY0J74TmOKnbxxT9n3FgGGWWsVdowHtjt9Nnvf7yQM2aZU/TIAIAxrw6dOnAWtZZcoEnBpNuTuObWMEiLAx1HY0ZQJEmHJ3HNvGCBBhY6jtaMoEiJB0Z29vL6ls58vxPcO8/zfrdo5qvKO+d3Fx8Wu8zf1dW4p/cPzLly/dtv9Ts/EbcvGAHhHyfBIhZ6NSiIBTo0LNNtScABFyNiqFCBChULMNNSdAhJyNSiECRCjUbEPNCRAhZ6NSiAARCjXbUHMCRMjZqBQiQIRCzTbUnAARcjYqhQgQoVCzDTUnQIScjUohAkQo1GxDzQkQIWejUogAEQo121BzAkTI2agUIkCEQs021JwAEXI2KoUEiHBwcHB1IwA24OTk5FruBiBBhF++fGvX0IyfX19fX98Yr/8dGFkWtLRJg8WAi8DxP99PAOiDUaZp2wAAAABJRU5ErkJggg=="
-                        />
-                      </div>
-                    }
-                    actions={[
-                      <Button
-                        type="text"
-                        icon={<EyeOutlined />}
-                        onClick={(e) => { e.stopPropagation(); setPreviewImage(image.url); setPreviewVisible(true) }}
-                        title={t['content.images.preview'] || '预览'}
-                      />,
-                      <Button
-                        type="text"
-                        icon={<CopyOutlined />}
-                        onClick={(e) => { e.stopPropagation(); handleCopyLink(image.url) }}
-                        title={t['content.images.copy'] || '复制链接'}
-                      />,
-                      // 远程与本地都支持移动
-                      <Button
-                        type="text"
-                        icon={<ScissorOutlined />}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setCurrentImage(image)
-                          setTargetFolder('')
-                          setMoveVisible(true)
-                        }}
-                        title={t['content.images.move'] || '移动'}
-                      />,
-                      ...(isLocal ? [
-                        <Button
-                          type="text"
-                          icon={<EditOutlined />}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setCurrentImage(image)
-                            setNewName(image.name)
-                            setRenameVisible(true)
-                          }}
-                          title={t['content.images.rename'] || '重命名'}
-                        />,
-                        <Popconfirm
-                          title={t['content.images.deleteConfirm'] || '确定要删除这张图片吗？'}
-                          onConfirm={() => handleDeleteImage(image)}
-                          okText={t['content.images.ok'] || '确定'}
-                          cancelText={t['content.images.cancel'] || '取消'}
-                        >
-                          <Button
-                            type="text"
-                            danger
-                            icon={<DeleteOutlined />}
-                            title={t['content.images.delete'] || '删除'}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </Popconfirm>
-                      ] : [
-                        // 远程图床：也允许重命名、删除
-                        <Button
-                          type="text"
-                          icon={<EditOutlined />}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setCurrentImage(image)
-                            setNewName(image.name)
-                            setRenameVisible(true)
-                          }}
-                          title={t['content.images.rename'] || '重命名'}
-                        />,
-                        <Popconfirm
-                          title={t['content.images.deleteConfirm'] || '确定要删除这张图片吗？'}
-                          onConfirm={() => handleDeleteImage(image)}
-                          okText={t['content.images.ok'] || '确定'}
-                          cancelText={t['content.images.cancel'] || '取消'}
-                        >
-                          <Button
-                            type="text"
-                            danger
-                            icon={<DeleteOutlined />}
-                            title={t['content.images.delete'] || '删除'}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </Popconfirm>
-                      ])
-                    ]}
-                  >
-                    <Card.Meta
-                      title={
-                        <Text ellipsis={{ tooltip: image.name }}>
-                          {image.name}
-                        </Text>
-                      }
-                      description={
-                        <div>
-                          <div>{formatFileSize(image.size)}</div>
-                        </div>
-                      }
-                    />
-                  </Card>
-                </Col>
-              ))}
-            </Row>
-            {/* 批量操作条 */}
-            {selectedKeys.length > 0 && (
-              <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-                <Text>{t['content.images.selectedCount'] || '已选中'}: {selectedKeys.length}</Text>
-                <Button
-                  danger
-                  onClick={async () => {
-                    try {
-                      await service.post('/hexopro/api/images/delete/batch', { paths: selectedKeys, storageType })
-                      message.success(t['content.images.deleteSuccess'] || '删除成功')
-                      setSelectedKeys([])
-                      fetchImages()
-                    } catch (e) {
-                      message.error(t['content.images.deleteFailed'] || '删除失败')
-                    }
-                  }}
-                >{t['content.images.batchDelete'] || '批量删除'}</Button>
-                <Button onClick={() => setSelectedKeys([])}>{t['content.images.clearSelection'] || '清空选择'}</Button>
-              </div>
-            )}
-          </>
-        ) : (
-          <Empty
-            description={t['content.images.noImages'] || '暂无图片'}
-            className={styles.empty}
-          />
-        )}
-      </Spin>
-
-      {data.total > 0 && (
-        <div className={styles.pagination}>
-          <Pagination
-            current={currentPage}
-            pageSize={pageSize}
-            total={data.total}
-            onChange={handlePageChange}
-            showSizeChanger={false}
-            responsive
-          />
+    <ManagementPage className={styles.imageManager} title={t['content.images.title']} description={ui.imagesDescription}
+      count={ui.imageCount.replace('{count}', String(data.total))}
+      actions={<><Button icon={<FolderAddOutlined />} onClick={() => setCreateFolderVisible(true)}>{t['content.images.createFolder']}</Button><Button type="primary" icon={<UploadOutlined />} onClick={() => setUploadVisible(true)}>{t['content.images.upload']}</Button></>}>
+      <div className={styles.workspace}>
+        <aside className={styles.sidebar} aria-label={ui.folders}>
+          <div className={styles.sidebarLabel}>{ui.storage}</div>
+          <Select className={styles.storageSelect} value={storageType} aria-label={ui.storage} onChange={value => { setStorageType(value); setCurrentFolder(''); setCurrentPage(1) }} options={availableStorages.map(value => ({value, label:value === 'local' ? ui.local : ({aliyun:'Aliyun OSS',qiniu:'Qiniu',tencent:'Tencent COS'}[value] || value)}))} />
+          <div className={styles.sidebarLabel}>{ui.folders}</div>
+          <nav className={styles.folderList}>
+            <button aria-pressed={!currentFolder} onClick={() => handleFolderChange('')}><PictureOutlined /><span>{ui.allImages}</span></button>
+            {data.folders.filter(folder => folder.toLowerCase() !== 'trash').map(folder => <button key={folder} aria-pressed={currentFolder === folder} onClick={() => handleFolderChange(folder)}><FolderOutlined /><span>{folder}</span></button>)}
+          </nav>
+          <button className={styles.trashFolder} aria-pressed={currentFolder === 'trash'} onClick={() => handleFolderChange('trash')}><DeleteOutlined /><span>{ui.imageTrash}</span></button>
+        </aside>
+        <div className={styles.gallery}>
+          <div className={styles.galleryHeader}>
+            <div className={styles.folderTitle}><h2>{folderLabel}</h2><span>{ui.imageCount.replace('{count}', String(data.total))}</span></div>
+            <div className={styles.galleryActions}>
+              <Tooltip title={ui.refresh}><Button type="text" icon={<ReloadOutlined />} aria-label={ui.refresh} loading={loading} onClick={fetchImages} /></Tooltip>
+              <Dropdown trigger={['click']} menu={{items:[
+                {key:'cleanup',label:ui.cleanup,icon:<DeleteOutlined />,disabled:currentFolder==='trash',onClick:()=>setCleanupVisible(true)},
+                {type:'divider'},
+                {key:'clear',label:t['content.images.clearFolder'] || '清空文件夹图片',danger:true,disabled:!currentFolder || currentFolder==='trash',onClick:()=>setClearConfirmVisible(true)},
+                {key:'delete',label:ui.deleteFolder,danger:true,disabled:!currentFolder || currentFolder==='trash',onClick:()=>setDeleteFolderVisible(true)},
+              ]}}><Button type="text" icon={<EllipsisOutlined />} aria-label={ui.more} /></Dropdown>
+            </div>
+          </div>
+          <div className={styles.galleryToolbar}>
+            <Input prefix={<SearchOutlined />} placeholder={ui.searchPage} aria-label={ui.searchPage} value={query} allowClear onChange={e=>setQuery(e.target.value)} className={styles.search} />
+            <Checkbox checked={selectedAll} indeterminate={selectedKeys.length>0 && !selectedAll} disabled={!visibleImages.length} onChange={e=>setSelectedKeys(e.target.checked ? visibleImages.map(image=>image.path) : [])}>{ui.pageSelection}</Checkbox>
+          </div>
+          {selectedKeys.length>0 && <div className={shared.batchBar} role="status"><span>{ui.selected.replace('{count}',String(selectedKeys.length))}</span><Button size="small" danger onClick={confirmBatchDelete}>{ui.batchDelete}</Button><Button size="small" type="text" onClick={()=>setSelectedKeys([])}>{ui.clearSelection}</Button></div>}
+          {loadError && <Alert type="error" showIcon message={loadError} action={<Button onClick={fetchImages}>{ui.retry}</Button>} />}
+          <Spin spinning={loading}>
+            {visibleImages.length>0 ? <div className={styles.imageGrid}>
+              {visibleImages.map(image=><article key={image.path} className={`${styles.imageCard} ${selectedKeys.includes(image.path)?styles.selectedCard:''}`}>
+                <div className={styles.imageContainer}>
+                  <button className={styles.previewButton} aria-label={`${ui.imagePreview} ${image.name}`} onClick={()=>{setPreviewImage(image.url);setPreviewVisible(true)}}>
+                    <Image src={isLocal?image.path:image.url} alt={image.name} preview={false} loading="lazy" />
+                  </button>
+                  <Checkbox className={styles.imageCheckbox} aria-label={`${ui.selectImage} ${image.name}`} checked={selectedKeys.includes(image.path)} onChange={()=>toggleSelect(image.path)} />
+                </div>
+                <div className={styles.imageDetails}>
+                  <Tooltip title={image.name}><div className={styles.imageName}>{image.name}</div></Tooltip>
+                  <div className={styles.imageMeta}><span>{formatFileSize(image.size)}</span><span>{String(image.lastModified||'').slice(0,10)}</span></div>
+                  <div className={styles.imageActions}>
+                    <Button type="text" size="small" icon={<CopyOutlined />} onClick={()=>handleCopyLink(image.url)}>{t['content.images.copy']}</Button>
+                    <Dropdown trigger={['click']} menu={{items:[
+                      {key:'preview',label:t['content.images.preview'],icon:<EyeOutlined />,onClick:()=>{setPreviewImage(image.url);setPreviewVisible(true)}},
+                      {key:'rename',label:t['content.images.rename'],icon:<EditOutlined />,onClick:()=>{setCurrentImage(image);setNewName(image.name);setRenameVisible(true)}},
+                      {key:'move',label:t['content.images.move'],icon:<ScissorOutlined />,onClick:()=>{setCurrentImage(image);setTargetFolder('');setMoveVisible(true)}},
+                      {type:'divider'},
+                      {key:'delete',danger:true,label:t['content.images.delete'],icon:<DeleteOutlined />,onClick:()=>Modal.confirm({title:t['content.images.deleteConfirm'],okButtonProps:{danger:true},okText:t['universal.delete'],cancelText:t['universal.cancel'],onOk:()=>handleDeleteImage(image)})},
+                    ]}}><Button type="text" size="small" icon={<EllipsisOutlined />} aria-label={`${ui.more} ${image.name}`} /></Dropdown>
+                  </div>
+                </div>
+              </article>)}
+            </div> : !loadError && <div className={shared.empty}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={query?ui.noResults:t['content.images.noImages']} />{!query && currentFolder!=='trash' && <Button type="primary" icon={<UploadOutlined />} onClick={()=>setUploadVisible(true)}>{t['content.images.upload']}</Button>}</div>}
+          </Spin>
+          {data.total>0 && <div className={shared.footer}><span>{ui.imageCount.replace('{count}',String(data.total))}</span><Pagination current={currentPage} pageSize={pageSize} total={data.total} onChange={handlePageChange} showSizeChanger={false} responsive /></div>}
         </div>
-      )}
+      </div>
 
       {/* 上传图片对话框 */}
       <Modal
@@ -713,7 +571,7 @@ const ImageManager: React.FC = () => {
 
       {/* 删除文件夹对话框 */}
       <Modal
-        title={t['content.images.deleteFolder'] || '删除文件夹'}
+        title={ui.deleteFolder || '删除文件夹'}
         open={deleteFolderVisible}
         onOk={async () => {
           try {
@@ -881,7 +739,7 @@ const ImageManager: React.FC = () => {
             />
           </div>
           <div>
-            <Text strong>{t['content.images.storageType'] || '图床'}</Text>
+            <Text strong>{ui.storage || '图床'}</Text>
             <Select
               style={{ width: '100%', marginTop: 6 }}
               value={storageType}
@@ -967,7 +825,7 @@ const ImageManager: React.FC = () => {
                 {t['content.images.selectAll'] || '全选'}
               </Button>
               <Button onClick={() => setCleanupSelectedKeys([])}>
-                {t['content.images.clearSelection'] || '清空选择'}
+                {ui.clearSelection || '清空选择'}
               </Button>
             </>
           )}
@@ -1077,7 +935,7 @@ const ImageManager: React.FC = () => {
           </Popconfirm>
         </div>
       </Modal>
-    </div>
+    </ManagementPage>
   )
 }
 

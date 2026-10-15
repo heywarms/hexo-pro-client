@@ -80,6 +80,11 @@ function getFlatternRoute(routes): any[] {
 export default function PageLayout() {
     const navigate = useNavigate()
     const location = useLocation()
+    const isCollectionPage = ['/content/posts/blogs', '/content/posts/drafts', '/content/pages'].includes(location.pathname)
+    const isDashboardPage = ['/', '/dashboard'].includes(location.pathname)
+    const isEditorPage = /^\/(?:post|page)\/[^/]+\/?$/.test(location.pathname)
+    const isManagementPage = ['/content/categories', '/content/images', '/content/recycle', '/content/yaml', '/deploy', '/sync', '/theme-market', '/settings'].includes(location.pathname)
+    const isFlatPage = isCollectionPage || isDashboardPage || isEditorPage || isManagementPage
     const { isMobile } = useDeviceDetect()
     const [authChecking, setAuthChecking] = useState(true)
     const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -205,7 +210,7 @@ export default function PageLayout() {
 
     const updateMenuStatus = useCallback(() => {
         const pathKeys = location.pathname.split('/')
-        const newSelectedKeys: string[] = []
+        const newSelectedKeys: string[] = location.pathname === '/' ? ['dashboard'] : []
         // console.log("pathKeys ===>", pathKeys)
         while (pathKeys.length > 0) {
             const currentRouteKey = pathKeys.join('/')
@@ -268,14 +273,15 @@ export default function PageLayout() {
     // }
 
     return (
-        <Layout className={styles.layout} data-theme={theme}>
-            <Navbar />
+        <Layout className={styles.layout} data-theme={theme} data-flat-page={isFlatPage}>
+            <Navbar contentPage={isCollectionPage} />
             <Layout>
                 <Sider
                     className={styles['layout-sider']}
+                    style={isMobile ? { display: 'none' } : undefined}
                     collapsed={collapsed}
                     collapsedWidth={isMobile ? 0 : 80}
-                    width={220}
+                    width={212}
                     theme={theme === 'dark' ? 'dark' : 'light'}
                 >
                     <Button type="default" onClick={toggleCollapsed} className={styles['collapse-btn']} size='small' >
@@ -296,10 +302,10 @@ export default function PageLayout() {
                 <Layout
                     className={styles['layout-content']}
                     style={{
-                        paddingLeft: isMobile ? 0 : (collapsed ? 30 : 15),
-                        paddingRight: isMobile ? 0 : (collapsed ? 30 : 15),
-                        paddingTop: isMobile ? 0 : 15,
-                        paddingBottom: isMobile ? 0 : 15
+                        paddingLeft: isMobile || isFlatPage ? 0 : (collapsed ? 30 : 15),
+                        paddingRight: isMobile || isFlatPage ? 0 : (collapsed ? 30 : 15),
+                        paddingTop: isMobile || isFlatPage ? 0 : 15,
+                        paddingBottom: isMobile || isFlatPage ? 0 : 15
                     }}
                 >
                     <div className={styles['layout-content-wrapper']}>
@@ -333,7 +339,7 @@ export default function PageLayout() {
                             </Routes>
                         </Content>
                     </div>
-                    <Footer />
+                    {!isFlatPage && <Footer />}
                 </Layout>
             </Layout>
         </Layout>

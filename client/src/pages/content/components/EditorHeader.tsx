@@ -8,7 +8,7 @@ import { openDesktopLink } from '@/utils/desktopUtils'
 import IconAI from '@/assets/ai.svg'
 import styles from './EditorHeader.module.less'
 
-export default function EditorHeader({ initTitle, isPage, isDraft, popTitle, popDes, className = '', permalink = undefined, handleSettingClick, handleRemoveSource, handlePublish, handleUnpublish, handleAIClick = undefined, beforeBack = undefined }) {
+export default function EditorHeader({ initTitle, isPage, isDraft, popTitle, popDes, className = '', permalink = undefined, handleSettingClick, handleRemoveSource, handlePublish, handleUnpublish, handleAIClick = undefined, beforeBack = undefined, settingsVisible = undefined }) {
     const navigate = useNavigate()
     const locale = useLocale()
     const [modal, contextHolder] = Modal.useModal()
@@ -43,7 +43,9 @@ export default function EditorHeader({ initTitle, isPage, isDraft, popTitle, pop
                 <span className={styles.actionLabel}>AI 助手</span>
             </Button>}
             {(isPage || !isDraft) && <Tooltip title="打开已发布页面"><Button type="text" aria-label="打开已发布页面" icon={<ExportOutlined />} onClick={() => openDesktopLink(permalink)} /></Tooltip>}
-            <Tooltip title="文章设置"><Button type="text" aria-label="文章设置" icon={<SettingOutlined />} onClick={handleSettingClick} /></Tooltip>
+            <Tooltip title={isPage ? '页面设置' : '文章属性'}><Button type="text" className={styles.propertyToggle}
+                aria-label={isPage ? '页面设置' : '文章属性'} aria-expanded={settingsVisible} aria-controls={isPage ? undefined : 'post-properties'}
+                icon={<SettingOutlined />} onClick={handleSettingClick}>{!isPage && <span className={styles.actionLabel}>属性</span>}</Button></Tooltip>
             {!isPage && <>
                 <span className={styles.actionDivider} />
                 {isDraft

@@ -1,6 +1,6 @@
 import { documentRouteId } from '@/utils/documentIdentity'
 import { Button, Image, Popconfirm, Space, message, Row, Col, Card, Pagination, Dropdown, Typography, Modal, Form, Input, Spin, Empty, Select, Breadcrumb, Tooltip, theme as antdTheme } from "antd"
-import { SendOutlined, RollbackOutlined, PictureOutlined, PlusOutlined, SearchOutlined, UnorderedListOutlined, AppstoreOutlined, MoreOutlined, ExportOutlined, DeleteOutlined } from "@ant-design/icons"
+import { SendOutlined, RollbackOutlined, PictureOutlined, PlusOutlined, SearchOutlined, UnorderedListOutlined, AppstoreOutlined, EllipsisOutlined, ExportOutlined, DeleteOutlined } from "@ant-design/icons"
 import React, { useContext, useEffect, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import service from "@/utils/api"
@@ -13,7 +13,7 @@ import Iconllipsis from "@/assets/ellipsis.svg"
 import defaultCover from "@/assets/defaultCover.png"
 import styles from './style/index.module.less'
 import ArticleRow from '../ArticleRow/ArticleRow'
-import { requestNewPost } from '@/utils/newPostEvent'
+import { requestNewPage, requestNewPost } from '@/utils/newPostEvent'
 
 type ViewMode = 'list' | 'card'
 type SortKey = 'updated_desc' | 'updated_asc' | 'title'
@@ -40,6 +40,14 @@ const fileNameOf = (item: any) => {
     return name || ''
 }
 
+const pagePathOf = (item: any) => {
+    try {
+        return item.permalink ? new URL(item.permalink, window.location.origin).pathname : (item.source || '')
+    } catch {
+        return item.source || ''
+    }
+}
+
 const toTime = (v?: string) => {
     if (!v) return 0
     const t = new Date(String(v).replace(' ', 'T')).getTime()
@@ -52,7 +60,7 @@ interface Props {
     published?: boolean; // 保持可选状态
     isPage?: boolean;
     showPublishStatus?: boolean;
-    /** 是否显示页头（面包屑/标题/新建按钮），页面管理有自己的页头 */
+    /** 是否显示统一的页头（面包屑、标题和新建按钮） */
     showHeader?: boolean;
 }
 
@@ -69,7 +77,7 @@ interface DataType {
 
 
 
-function ArticleList({ published, isPage = false, showPublishStatus = true, showHeader = !isPage }: Props) {
+function ArticleList({ published, isPage = false, showPublishStatus = true, showHeader = true }: Props) {
     const { token } = antdTheme.useToken()
     const { isMobile } = useDeviceDetect()
     const { theme } = useContext(GlobalContext)
@@ -164,10 +172,8 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
         // 重置预览URL
         setPreviewUrl('')
         // 如果当前文章有封面，则设置为初始值
-        if (item.cover) {
-            form.setFieldsValue({ value: item.cover })
-            setPreviewUrl(item.cover)
-        }
+        form.setFieldsValue({ key: 'cover', value: item.cover || '' })
+        setPreviewUrl(item.cover || '')
     }
 
     const handleCoverSubmit = async () => {
@@ -273,21 +279,14 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
     const queryPosts = () => {
         const listApiPath = isPage ? '/hexopro/api/pages/list' : '/hexopro/api/posts/list'
         const queryId = ++queryIdRef.current
-        // 后端列表接口只支持分页；搜索或非默认排序时取全量后在前端过滤/排序/分页
-        const clientSide = !!keyword.trim() || sortKey !== 'updated_desc'
-        const params = clientSide
-            ? { published, page: 1, pageSize: 100000 }
-            : { published, page: currentPage, pageSize }
+        // The legacy API sorts by creation date. Sort the complete collection before
+        // paginating so “Recently updated” has the same meaning on every page.
+        const params = { published, ...(isPage ? { deleted: 'false' } : {}), page: 1, pageSize: 100000 }
         setLoading(true)
         service.get(listApiPath, { params })
             .then(res => {
                 if (queryId !== queryIdRef.current) return
                 let list = (res.data.data || []).map(mapPost)
-                if (!clientSide) {
-                    setTotal(res.data.total)
-                    setPostList(list)
-                    return
-                }
                 const kw = keyword.trim().toLowerCase()
                 if (kw) list = list.filter(p => String(p.title || '').toLowerCase().includes(kw))
                 if (sortKey === 'title') {
@@ -297,7 +296,9 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
                     list.sort((x, y) => dir * (toTime(x.updated) - toTime(y.updated)))
                 }
                 setTotal(list.length)
-                setPostList(list.slice((currentPage - 1) * pageSize, currentPage * pageSize))
+                const validPage = Math.min(currentPage, Math.max(1, Math.ceil(list.length / pageSize)))
+                if (validPage !== currentPage) setCurrentPage(validPage)
+                setPostList(list.slice((validPage - 1) * pageSize, validPage * pageSize))
             })
             .catch(err => {
                 if (queryId === queryIdRef.current) message.error(err?.message || t['content.articleList.fetchError'])
@@ -307,17 +308,28 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
             })
     }
 
+    useEffect(() => {
+        if (searchInput === keyword) return
+        const timer = window.setTimeout(() => {
+            setKeyword(searchInput)
+            setCurrentPage(1)
+        }, 250)
+        return () => window.clearTimeout(timer)
+    }, [searchInput, keyword])
+
     // 统一的数据加载Effect，只依赖必要的参数
     useEffect(() => {
         queryPosts()
-    }, [currentPage, pageSize, published, requestKey, keyword, sortKey])
+    }, [currentPage, pageSize, published, isPage, requestKey, keyword, sortKey])
 
     const editPath = (item) => isPage ? `/page/${documentRouteId(item)}` : `/post/${documentRouteId(item)}`
 
     const pageTitle = isPage
         ? (t['menu.pages'] || '页面')
         : published ? (t['content.articleList.header.published'] || '已发布') : (t['content.articleList.header.drafts'] || '草稿箱')
-    const pageDesc = published
+    const pageDesc = isPage
+        ? (t['content.articleList.header.pagesDesc'] || '管理关于、友链等独立页面。')
+        : published
         ? (t['content.articleList.header.publishedDesc'] || '管理已经发布到博客的文章。')
         : (t['content.articleList.header.draftsDesc'] || '管理尚未发布的草稿。')
 
@@ -327,6 +339,11 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
             placement="bottomRight"
             menu={{
                 items: [
+                    ...(isMobile ? [
+                        { key: 'edit', label: t['content.articleList.btn.edit'] || '编辑', onClick: () => navigate(editPath(item)) },
+                        ...(!isPage && !published ? [{ key: 'publish', icon: <SendOutlined />, label: t['content.articleList.btn.publish'] || '发布文章', onClick: ({ domEvent }) => handlePublish(item, domEvent) }]
+                            : item.permalink ? [{ key: 'view', icon: <ExportOutlined />, label: t['content.articleList.btn.view'] || '查看', onClick: () => openDesktopLink(item.permalink) }] : []),
+                    ] : []),
                     {
                         key: 'setCover',
                         icon: <PictureOutlined />,
@@ -358,24 +375,25 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
                 ]
             }}
         >
-            <Button type="text" icon={<MoreOutlined />} aria-label={t['content.articleList.btn.more'] || '更多'} onClick={(e) => e.stopPropagation()} />
+            <Button type="text" icon={<EllipsisOutlined />} aria-label={t['content.articleList.btn.more'] || '更多'} onClick={(e) => e.stopPropagation()} />
         </Dropdown>
     )
 
     const renderRowActions = (item) => (
         <>
-            <Button type="link" onClick={() => navigate(editPath(item))}>
-                {t['content.articleList.btn.edit'] || '编辑'}
+            {!isMobile && <Button type="link" onClick={() => navigate(editPath(item))}>
+                {!isPage && !published ? (t['content.articleList.btn.continueEditing'] || '继续编辑') : (t['content.articleList.btn.edit'] || '编辑')}
             </Button>
-            {!isPage && !published ? (
+            }
+            {!isMobile && (!isPage && !published ? (
                 <Tooltip title={t['content.articleList.btn.publish'] || '发布文章'}>
-                    <Button type="text" icon={<SendOutlined />} onClick={(e) => handlePublish(item, e)} />
+                    <Button type="text" aria-label={t['content.articleList.btn.publish'] || '发布文章'} icon={<SendOutlined />} onClick={(e) => handlePublish(item, e)} />
                 </Tooltip>
             ) : (!item.isDraft && item.permalink) ? (
                 <Tooltip title={t['content.articleList.btn.view'] || '查看'}>
-                    <Button type="text" icon={<ExportOutlined />} onClick={(e) => { e.stopPropagation(); openDesktopLink(item.permalink) }} />
+                    <Button type="text" aria-label={t['content.articleList.btn.view'] || '查看'} icon={<ExportOutlined />} onClick={(e) => { e.stopPropagation(); openDesktopLink(item.permalink) }} />
                 </Tooltip>
-            ) : null}
+            ) : null)}
             {renderMoreMenu(item)}
         </>
     )
@@ -383,7 +401,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
     const renderList = () => (
         <div className={styles['row-list']}>
             {postList.map(item => {
-                const file = fileNameOf(item)
+                const file = isPage ? pagePathOf(item) : fileNameOf(item)
                 return (
                     <ArticleRow
                         key={item.documentId || item._id}
@@ -399,38 +417,40 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
     )
 
     return (
-        <div className={styles['article-page']}>
+        <section className={styles['article-page']} data-theme={theme} aria-label={pageTitle}>
             {showHeader && (
-                <div className={styles['page-header']}>
-                    <div className={styles['page-header-main']}>
-                        <Breadcrumb
-                            items={[
-                                { title: t['menu.content_management'] || '内容管理' },
-                                { title: isPage ? (t['menu.pages'] || '页面') : (t['menu.posts'] || '文章') },
-                            ]}
-                        />
-                        <div className={styles['page-title-line']}>
-                            <Typography.Title level={3} style={{ margin: 0 }}>{pageTitle}</Typography.Title>
-                            <Text type="secondary" className={styles['page-count']}>
-                                {(t['content.articleList.header.count'] || '{count} 篇').replace('{count}', String(total))}
-                            </Text>
+                <>
+                    <Breadcrumb
+                        className={styles['page-breadcrumb']}
+                        items={[
+                            { title: t['menu.content_management'] || '内容管理' },
+                            { title: isPage ? (t['menu.pages'] || '页面') : (t['menu.posts'] || '文章') },
+                        ]}
+                    />
+                    <header className={styles['page-header']}>
+                        <div className={styles['page-header-main']}>
+                            <div className={styles['page-title-line']}>
+                                <h1 className={styles['page-title']}>{pageTitle}</h1>
+                                <span className={styles['page-count']}>
+                                    {(isPage ? (t['content.articleList.header.pageCount'] || '{count} 个') : (t['content.articleList.header.count'] || '{count} 篇')).replace('{count}', String(total))}
+                                </span>
+                            </div>
+                            <p className={styles['page-description']}>{pageDesc}</p>
                         </div>
-                        <Text type="secondary">{pageDesc}</Text>
-                    </div>
-                    {!isPage && (
-                        <Button type="primary" icon={<PlusOutlined />} onClick={() => requestNewPost()}>
-                            {t['content.articleList.btn.newPost'] || '新建文章'}
+                        <Button className={styles['create-button']} type="primary" icon={<PlusOutlined />} onClick={isPage ? requestNewPage : requestNewPost}>
+                            {isPage ? (t['content.articleList.btn.newPage'] || '新建页面') : (t['content.articleList.btn.newPost'] || '新建文章')}
                         </Button>
-                    )}
-                </div>
+                    </header>
+                </>
             )}
 
             <div className={styles.toolbar}>
                 <Input
                     allowClear
                     className={styles['search-input']}
-                    prefix={<SearchOutlined style={{ color: token.colorTextQuaternary }} />}
-                    placeholder={t['content.articleList.search.placeholder'] || '搜索文章标题...'}
+                    prefix={<SearchOutlined />}
+                    aria-label={isPage ? (t['content.articleList.search.pagePlaceholder'] || '搜索页面标题…') : (t['content.articleList.search.placeholder'] || '搜索文章标题…')}
+                    placeholder={isPage ? (t['content.articleList.search.pagePlaceholder'] || '搜索页面标题…') : (t['content.articleList.search.placeholder'] || '搜索文章标题…')}
                     value={searchInput}
                     onChange={(e) => {
                         setSearchInput(e.target.value)
@@ -439,11 +459,12 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
                     onPressEnter={() => { setKeyword(searchInput); setCurrentPage(1) }}
                     onBlur={() => { if (searchInput !== keyword) { setKeyword(searchInput); setCurrentPage(1) } }}
                 />
-                <Space size={8}>
+                <div className={styles['toolbar-actions']}>
                     <Select<SortKey>
                         value={sortKey}
                         onChange={changeSort}
-                        style={{ width: 132 }}
+                        className={styles['sort-select']}
+                        aria-label={t['content.articleList.sort.updatedDesc'] || '排序'}
                         options={[
                             { value: 'updated_desc', label: t['content.articleList.sort.updatedDesc'] || '最近更新' },
                             { value: 'updated_asc', label: t['content.articleList.sort.updatedAsc'] || '最早更新' },
@@ -452,6 +473,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
                     />
                     <Tooltip title={t['content.articleList.view.list'] || '列表视图'}>
                         <Button
+                            aria-label={t['content.articleList.view.list'] || '列表视图'}
                             icon={<UnorderedListOutlined />}
                             type={viewMode === 'list' ? 'primary' : 'default'}
                             ghost={viewMode === 'list'}
@@ -461,6 +483,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
                     </Tooltip>
                     <Tooltip title={t['content.articleList.view.card'] || '卡片视图'}>
                         <Button
+                            aria-label={t['content.articleList.view.card'] || '卡片视图'}
                             icon={<AppstoreOutlined />}
                             type={viewMode === 'card' ? 'primary' : 'default'}
                             ghost={viewMode === 'card'}
@@ -468,7 +491,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
                             onClick={() => changeViewMode('card')}
                         />
                     </Tooltip>
-                </Space>
+                </div>
             </div>
 
             <Spin spinning={loading}>
@@ -476,7 +499,9 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
                 <Empty
                     style={{ padding: '48px 0' }}
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description={keyword ? (t['content.articleList.empty.search'] || '没有匹配的文章') : (t['content.articleList.empty'] || '暂无文章')}
+                    description={isPage
+                        ? (keyword ? (t['content.articleList.empty.pagesSearch'] || '没有匹配的页面') : (t['content.articleList.empty.pages'] || '暂无页面'))
+                        : (keyword ? (t['content.articleList.empty.search'] || '没有匹配的文章') : (t['content.articleList.empty'] || '暂无文章'))}
                 />
             ) : viewMode === 'list' ? renderList() : (
             <Row gutter={[16, 16]}>
@@ -846,13 +871,14 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
 
             <div className={styles.footer}>
                 <Text type="secondary">
-                    {(t['content.articleList.footer.total'] || '共 {count} 篇文章').replace('{count}', String(total))}
+                    {(isPage ? (t['content.articleList.footer.pagesTotal'] || '共 {count} 个页面') : (t['content.articleList.footer.total'] || '共 {count} 篇文章')).replace('{count}', String(total))}
                 </Text>
                 <Space size={12} wrap>
                     <Select<number>
                         value={pageSize}
                         onChange={(size) => handleTableChange(1, size)}
-                        style={{ width: 110 }}
+                        className={styles['page-size-select']}
+                        aria-label={t['content.articleList.footer.pageSize']?.replace('{size}', String(pageSize)) || '每页条数'}
                         options={PAGE_SIZE_OPTIONS.map(n => ({
                             value: n,
                             label: (t['content.articleList.footer.pageSize'] || '{size} 条/页').replace('{size}', String(n)),
@@ -864,11 +890,12 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
                         total={total}
                         pageSize={pageSize}
                         showSizeChanger={false}
-                        responsive
+                        responsive={false}
+                        showLessItems
                     />
                 </Space>
             </div>
-        </div>
+        </section>
     )
 }
 

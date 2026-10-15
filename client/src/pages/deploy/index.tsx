@@ -1,19 +1,14 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react'
 import {
-  Card,
   Form,
   Input,
   Button,
   message,
-  Divider,
   Alert,
   Spin,
   Typography,
   Space,
-  Row,
-  Col,
   Progress,
-  Timeline,
   Switch,
   Tabs,
   Badge,
@@ -31,14 +26,18 @@ import {
   CloudOutlined,
   ThunderboltOutlined,
   CloudServerOutlined,
+  CloudSyncOutlined,
+  CodeOutlined,
 } from '@ant-design/icons'
 import { service } from '@/utils/api'
 import useLocale from '@/hooks/useLocale'
 import { useLocalStorageState } from '@/pages/settings/hooks/useLocalStorageState'
 import styles from './style.module.less'
 import { useNavigate } from 'react-router-dom'
+import ManagementPage from '../content/components/ManagementPage'
+import systemLocale from '../system/locale'
 
-const { Paragraph, Text } = Typography
+const { Text } = Typography
 
 type DeployTarget = 'github' | 'cloudflare-pages' | 'edgeone-pages'
 
@@ -48,7 +47,9 @@ const DeployPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [deployLoading, setDeployLoading] = useState<DeployTarget | 'all' | null>(null)
   const t = useLocale()
-  const [activeTab, setActiveTab] = useState('github')
+  const ui = useLocale(systemLocale)
+  const [loadError, setLoadError] = useState(false)
+  const [activeTab, setActiveTab] = useState<DeployTarget>('github')
   const [githubEnabled, setGithubEnabled] = useState(true)
   const [cloudflareEnabled, setCloudflareEnabled] = useState(false)
   const [edgeoneEnabled, setEdgeoneEnabled] = useState(false)
@@ -125,6 +126,7 @@ const DeployPage: React.FC = () => {
   const fetchDeployConfig = async () => {
     try {
       setLoading(true)
+      setLoadError(false)
       const res = await service.get('/hexopro/api/deploy/config')
       const data = res.data
       form.setFieldsValue(data)
@@ -134,7 +136,7 @@ const DeployPage: React.FC = () => {
       setEdgeoneEnabled(enabled.includes('edgeone-pages'))
       await fetchDeployStatus()
     } catch {
-      message.error(t['deploy.config.fetchFailed'])
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -310,6 +312,7 @@ const DeployPage: React.FC = () => {
           <Text strong>{t['deploy.platform.enablePlatform']}</Text>
           <Switch
             size="small"
+            aria-label={t['deploy.platform.enablePlatform']}
             checked={githubEnabled}
             onChange={(checked) => {
               setGithubEnabled(checked)
@@ -321,7 +324,7 @@ const DeployPage: React.FC = () => {
       <Form.Item
         label={t['deploy.config.repository']}
         name="repository"
-        rules={[{ required: true, message: t['deploy.config.repository'] + t['settings.usernameRequired'] }]}
+        rules={[{ required: true, message: ui.requiredField.replace('{field}', t['deploy.config.repository']) }]}
         tooltip={t['deploy.config.repositoryTooltip']}
       >
         <Input placeholder={t['deploy.config.repositoryPlaceholder']} prefix={<GithubOutlined />} />
@@ -329,31 +332,26 @@ const DeployPage: React.FC = () => {
       <Form.Item
         label={t['deploy.config.branch']}
         name="branch"
-        rules={[{ required: true, message: t['deploy.config.branch'] + t['settings.usernameRequired'] }]}
+        rules={[{ required: true, message: ui.requiredField.replace('{field}', t['deploy.config.branch']) }]}
       >
         <Input placeholder={t['deploy.config.branchPlaceholder']} />
       </Form.Item>
       <Form.Item
         label={t['deploy.config.message']}
         name="message"
-        rules={[{ required: true, message: t['deploy.config.message'] + t['settings.usernameRequired'] }]}
+        rules={[{ required: true, message: ui.requiredField.replace('{field}', t['deploy.config.message']) }]}
       >
         <Input placeholder={t['deploy.config.messagePlaceholder']} />
       </Form.Item>
       <Form.Item label={t['deploy.config.token']} name="token" tooltip={t['deploy.config.tokenTooltip']}>
         <Input.Password placeholder={t['deploy.config.tokenPlaceholder']} />
       </Form.Item>
-      <Alert
-        message={t['deploy.config.alertTitle']}
-        description={t['deploy.config.alertDesc']}
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-      />
+      <details className={styles.advancedOptions}><summary>{ui.advancedOptions}</summary>
       <div className={styles.settingItem}>
         <div className={styles.settingHeader}>
           <Text strong>{t['settings.skipGenerate']}</Text>
           <Switch
+            aria-label={t['settings.skipGenerate']}
             checked={skipGenerateEnabled}
             onChange={onSkipGenerateChange}
             checkedChildren={t['settings.enabled']}
@@ -381,28 +379,24 @@ const DeployPage: React.FC = () => {
           {t['deploy.cleanup.button']}
         </Button>
       )}
-      <Divider />
-      <div className={styles.helpSection}>
-        <Text strong style={{ fontSize: 13 }}>{t['deploy.help.how.github']}</Text>
+      </details>
+      <details className={styles.helpSection}>
+        <summary>{t['deploy.help.how.github']}</summary>
+      <Alert
+        message={t['deploy.config.alertTitle']}
+        description={t['deploy.config.alertDesc']}
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
+      />
+
         <div style={{ margin: '4px 0 0', paddingLeft: 8 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.step1']}</Text><br />
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.step2']}</Text><br />
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.step3']}</Text><br />
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.note']}</Text>
         </div>
-      </div>
-      <Divider />
-      <Button
-        type="primary"
-        icon={<RocketOutlined />}
-        size="large"
-        block
-        loading={deployLoading === 'github'}
-        onClick={() => executeDeploy(['github'])}
-        disabled={deployStatus.isDeploying || !githubEnabled}
-      >
-        {t['deploy.platform.deployTo']} {t['deploy.config.deployType.github']}
-      </Button>
+      </details>
     </div>
   )
 
@@ -413,6 +407,7 @@ const DeployPage: React.FC = () => {
           <Text strong>{t['deploy.platform.enablePlatform']}</Text>
           <Switch
             size="small"
+            aria-label={t['deploy.platform.enablePlatform']}
             checked={cloudflareEnabled}
             onChange={(checked) => {
               setCloudflareEnabled(checked)
@@ -424,7 +419,7 @@ const DeployPage: React.FC = () => {
       <Form.Item
         label={t['deploy.config.cloudflare.accountId']}
         name={['cloudflare', 'accountId']}
-        rules={[{ required: true, message: t['deploy.config.cloudflare.accountId'] + t['settings.usernameRequired'] }]}
+        rules={[{ required: true, message: ui.requiredField.replace('{field}', t['deploy.config.cloudflare.accountId']) }]}
         tooltip={t['deploy.config.cloudflare.accountIdTooltip']}
       >
         <Input placeholder={t['deploy.config.cloudflare.accountIdPlaceholder']} />
@@ -432,7 +427,7 @@ const DeployPage: React.FC = () => {
       <Form.Item
         label={t['deploy.config.cloudflare.projectName']}
         name={['cloudflare', 'projectName']}
-        rules={[{ required: true, message: t['deploy.config.cloudflare.projectName'] + t['settings.usernameRequired'] }]}
+        rules={[{ required: true, message: ui.requiredField.replace('{field}', t['deploy.config.cloudflare.projectName']) }]}
         tooltip={t['deploy.config.cloudflare.projectNameTooltip']}
       >
         <Input placeholder={t['deploy.config.cloudflare.projectNamePlaceholder']} />
@@ -440,11 +435,13 @@ const DeployPage: React.FC = () => {
       <Form.Item
         label={t['deploy.config.cloudflare.apiToken']}
         name={['cloudflare', 'apiToken']}
-        rules={[{ required: true, message: t['deploy.config.cloudflare.apiToken'] + t['settings.usernameRequired'] }]}
+        rules={[{ required: true, message: ui.requiredField.replace('{field}', t['deploy.config.cloudflare.apiToken']) }]}
         tooltip={t['deploy.config.cloudflare.apiTokenTooltip']}
       >
         <Input.Password placeholder={t['deploy.config.cloudflare.apiTokenPlaceholder']} />
       </Form.Item>
+      <details className={styles.helpSection}>
+        <summary>{t['deploy.help.how.cloudflare']}</summary>
       <Alert
         message={t['deploy.config.alertTitle']}
         description={t['deploy.config.alertDesc.cloudflare']}
@@ -452,28 +449,14 @@ const DeployPage: React.FC = () => {
         showIcon
         style={{ marginBottom: 16 }}
       />
-      <Divider />
-      <div className={styles.helpSection}>
-        <Text strong style={{ fontSize: 13 }}>{t['deploy.help.how.cloudflare']}</Text>
+
         <div style={{ margin: '4px 0 0', paddingLeft: 8 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.step1.cloudflare']}</Text><br />
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.step2.cloudflare']}</Text><br />
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.step3.cloudflare']}</Text><br />
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.note.cloudflare']}</Text>
         </div>
-      </div>
-      <Divider />
-      <Button
-        type="primary"
-        icon={<RocketOutlined />}
-        size="large"
-        block
-        loading={deployLoading === 'cloudflare-pages'}
-        onClick={() => executeDeploy(['cloudflare-pages'])}
-        disabled={deployStatus.isDeploying || !cloudflareEnabled}
-      >
-        {t['deploy.platform.deployTo']} {t['deploy.config.deployType.cloudflare']}
-      </Button>
+      </details>
     </div>
   )
 
@@ -484,6 +467,7 @@ const DeployPage: React.FC = () => {
           <Text strong>{t['deploy.platform.enablePlatform']}</Text>
           <Switch
             size="small"
+            aria-label={t['deploy.platform.enablePlatform']}
             checked={edgeoneEnabled}
             onChange={(checked) => {
               setEdgeoneEnabled(checked)
@@ -495,7 +479,7 @@ const DeployPage: React.FC = () => {
       <Form.Item
         label={t['deploy.config.edgeone.projectName']}
         name={['edgeone', 'projectName']}
-        rules={[{ required: true, message: t['deploy.config.edgeone.projectName'] + t['settings.usernameRequired'] }]}
+        rules={[{ required: true, message: ui.requiredField.replace('{field}', t['deploy.config.edgeone.projectName']) }]}
         tooltip={t['deploy.config.edgeone.projectNameTooltip']}
       >
         <Input placeholder={t['deploy.config.edgeone.projectNamePlaceholder']} prefix={<CloudServerOutlined />} />
@@ -503,7 +487,7 @@ const DeployPage: React.FC = () => {
       <Form.Item
         label={t['deploy.config.edgeone.apiToken']}
         name={['edgeone', 'apiToken']}
-        rules={[{ required: true, message: t['deploy.config.edgeone.apiToken'] + t['settings.usernameRequired'] }]}
+        rules={[{ required: true, message: ui.requiredField.replace('{field}', t['deploy.config.edgeone.apiToken']) }]}
         tooltip={t['deploy.config.edgeone.apiTokenTooltip']}
       >
         <Input.Password placeholder={t['deploy.config.edgeone.apiTokenPlaceholder']} />
@@ -520,6 +504,8 @@ const DeployPage: React.FC = () => {
           ]}
         />
       </Form.Item>
+      <details className={styles.helpSection}>
+        <summary>{t['deploy.help.how.edgeone']}</summary>
       <Alert
         message={t['deploy.config.alertTitle']}
         description={t['deploy.config.alertDesc.edgeone']}
@@ -527,34 +513,20 @@ const DeployPage: React.FC = () => {
         showIcon
         style={{ marginBottom: 16 }}
       />
-      <Divider />
-      <div className={styles.helpSection}>
-        <Text strong style={{ fontSize: 13 }}>{t['deploy.help.how.edgeone']}</Text>
+
         <div style={{ margin: '4px 0 0', paddingLeft: 8 }}>
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.step1.edgeone']}</Text><br />
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.step2.edgeone']}</Text><br />
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.step3.edgeone']}</Text><br />
           <Text type="secondary" style={{ fontSize: 12 }}>{t['deploy.help.note.edgeone']}</Text>
         </div>
-      </div>
-      <Divider />
-      <Button
-        type="primary"
-        icon={<RocketOutlined />}
-        size="large"
-        block
-        loading={deployLoading === 'edgeone-pages'}
-        onClick={() => executeDeploy(['edgeone-pages'])}
-        disabled={deployStatus.isDeploying || !edgeoneEnabled}
-      >
-        {t['deploy.platform.deployTo']} {t['deploy.config.deployType.edgeone']}
-      </Button>
+      </details>
     </div>
   )
 
   const tabItems = [
     {
-      key: 'github',
+      key: 'github', forceRender: true,
       label: (
         <Space size={4}>
           <GithubOutlined />
@@ -565,7 +537,7 @@ const DeployPage: React.FC = () => {
       children: renderGithubTab(),
     },
     {
-      key: 'cloudflare-pages',
+      key: 'cloudflare-pages', forceRender: true,
       label: (
         <Space size={4}>
           <CloudOutlined />
@@ -576,7 +548,7 @@ const DeployPage: React.FC = () => {
       children: renderCloudflareTab(),
     },
     {
-      key: 'edgeone-pages',
+      key: 'edgeone-pages', forceRender: true,
       label: (
         <Space size={4}>
           <CloudServerOutlined />
@@ -589,151 +561,48 @@ const DeployPage: React.FC = () => {
   ]
 
   return (
-    <div className={styles.deployContainer}>
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-        message="部署网站"
-        description="在这里将网站发布到 GitHub Pages、Cloudflare Pages 或 EdgeOne Pages。手机与电脑之间同步文章、主题和配置，请使用云同步。"
-        action={<Button onClick={() => navigate('/sync')}>前往云同步</Button>}
-      />
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={16}>
-          <Card bodyStyle={{ paddingTop: 0 }}>
-            <Spin spinning={loading}>
-              <Form
-                form={form}
-                layout="vertical"
-                onValuesChange={onFormValuesChange}
-                initialValues={{
-                  repository: '',
-                  branch: 'main',
-                  message: 'Site updated: {{ now("YYYY-MM-DD HH:mm:ss") }}',
-                  token: '',
-                  cloudflare: { accountId: '', projectName: '', apiToken: '' },
-                  edgeone: { projectName: '', apiToken: '', env: 'production' },
-                }}
-              >
-                <Tabs
-                  activeKey={activeTab}
-                  onChange={setActiveTab}
-                  items={tabItems}
-                  className={styles.deployTabs}
-                />
-              </Form>
-            </Spin>
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={8}>
-          <Card
-            title={
-              <Space>
-                <RocketOutlined />
-                <span>{t['deploy.action.title']}</span>
-              </Space>
-            }
-            extra={
-              <Button type="link" size="small" icon={<ReloadOutlined />} onClick={resetDeployStatus} loading={loading}>
-                {t['deploy.action.reset']}
-              </Button>
-            }
-          >
-            <Spin spinning={loading}>
-              <div className={styles.deployStatus}>
-                <Paragraph style={{ marginBottom: 8 }}>
-                  <Text strong>{t['deploy.status.lastTime']}: </Text>
-                  <Text>{deployStatus.lastDeployTime}</Text>
-                </Paragraph>
-
-                {githubEnabled && (
-                  <Paragraph style={{ marginBottom: 8 }}>
-                    <Text strong>{t['deploy.status.status']}: </Text>
-                    {deployStatus.hasDeployGit ? (
-                      <Badge status="success" text={t['deploy.status.inited']} />
-                    ) : (
-                      <Badge status="warning" text={t['deploy.status.notInited']} />
-                    )}
-                  </Paragraph>
-                )}
-
-                <Paragraph style={{ marginBottom: 8 }}>
-                  <Text strong>{t['deploy.platform.enabledPlatforms']}: </Text>
-                  {enabledTargets.length === 0 ? (
-                    <Text type="secondary">-</Text>
-                  ) : (
-                    <Space size={4}>
-                      {enabledTargets.includes('github') && <Tag icon={<GithubOutlined />} color="default">GitHub</Tag>}
-                      {enabledTargets.includes('cloudflare-pages') && <Tag icon={<CloudOutlined />} color="processing">Cloudflare</Tag>}
-                      {enabledTargets.includes('edgeone-pages') && <Tag icon={<CloudServerOutlined />} color="cyan">EdgeOne</Tag>}
-                    </Space>
-                  )}
-                </Paragraph>
-
-                {canDeployAll && (
-                  <Button
-                    type="primary"
-                    icon={<ThunderboltOutlined />}
-                    size="middle"
-                    block
-                    loading={deployLoading === 'all'}
-                    onClick={() => executeDeploy(enabledTargets)}
-                    disabled={deployStatus.isDeploying}
-                    style={{ marginBottom: 12 }}
-                  >
-                    {t['deploy.platform.deployAll']}
-                  </Button>
-                )}
-
-                {deployStatus.isDeploying && (
-                  <>
-                    <Divider style={{ margin: '12px 0' }} />
-                    <div className={styles.deployProgress}>
-                      <Paragraph style={{ marginBottom: 4 }}>
-                        <Text strong>{t['deploy.status.currentStage']}: </Text>
-                        <Text>{getStageText(deployStatus.stage)}</Text>
-                      </Paragraph>
-                      <Progress
-                        percent={deployStatus.progress}
-                        status={deployStatus.error ? 'exception' : 'active'}
-                        size="small"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </Spin>
-          </Card>
-
-          {deployStatus.logs && deployStatus.logs.length > 0 && (
-            <Card
-              title={
-                <Space>
-                  <InfoCircleOutlined />
-                  <span>{t['deploy.log.title']}</span>
-                </Space>
-              }
-              style={{ marginTop: 16 }}
-              bodyStyle={{ padding: '12px 16px' }}
-            >
-              <div className={styles.deployLogs}>
-                <Timeline style={{ padding: '10px 0', maxHeight: '300px', overflowY: 'auto' }}>
-                  {deployStatus.logs.map((log, index) => (
-                    <Timeline.Item
-                      key={index}
-                      dot={index === deployStatus.logs.length - 1 ? getStageIcon(deployStatus.stage) : undefined}
-                    >
-                      <Text style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap', fontSize: 12 }}>{log}</Text>
-                    </Timeline.Item>
-                  ))}
-                </Timeline>
-              </div>
-            </Card>
-          )}
-        </Col>
-      </Row>
-    </div>
+    <ManagementPage sectionTitle={ui.system} title={ui.deployTitle} description={ui.deployDescription}
+      count={ui.activePlatforms.replace('{count}', String(enabledTargets.length))}
+      actions={<><Button icon={<CloudSyncOutlined />} onClick={() => navigate('/sync')}>{ui.syncLink}</Button><Button type="primary" icon={<RocketOutlined />} loading={deployLoading === activeTab} onClick={() => executeDeploy([activeTab])} disabled={loading || loadError || deployStatus.isDeploying || Boolean(deployLoading) || !enabledTargets.includes(activeTab)}>{t['deploy.platform.deployTo']} {activeTab === 'github' ? 'GitHub Pages' : activeTab === 'cloudflare-pages' ? 'Cloudflare Pages' : 'EdgeOne Pages'}</Button></>}>
+      {loadError && <Alert type="error" showIcon message={t['deploy.config.fetchFailed']} action={<Button onClick={fetchDeployConfig}>{ui.retry}</Button>} className={styles.loadError} />}
+      <div className={styles.workspace}>
+        <section className={styles.configuration}>
+          <div className={styles.sectionHeading}><h2>{ui.deployConfig}</h2><span>{ui.autoSave}</span></div>
+          <Spin spinning={loading}>
+            <Form form={form} layout="vertical" onValuesChange={onFormValuesChange} disabled={loading || loadError || deployStatus.isDeploying || Boolean(deployLoading)}
+              initialValues={{ repository: '', branch: 'main', message: 'Site updated: {{ now("YYYY-MM-DD HH:mm:ss") }}', token: '',
+                cloudflare: { accountId: '', projectName: '', apiToken: '' }, edgeone: { projectName: '', apiToken: '', env: 'production' } }}>
+              <Tabs activeKey={activeTab} onChange={key => setActiveTab(key as DeployTarget)} items={tabItems} className={styles.deployTabs} />
+            </Form>
+          </Spin>
+        </section>
+        <aside className={styles.activity}>
+          <div className={styles.sectionHeading}><h2>{ui.deployActivity}</h2><Button type="text" size="small" icon={<ReloadOutlined />} onClick={resetDeployStatus} loading={loading} disabled={deployStatus.isDeploying || Boolean(deployLoading)}>{t['deploy.action.reset']}</Button></div>
+          <div className={styles.statusPanel} aria-live="polite">
+            <div className={styles.stage}><span className={styles.stageIcon} data-status={deployStatus.stage}>{getStageIcon(deployStatus.stage)}</span><div><span>{t['deploy.status.currentStage']}</span><h3>{getStageText(deployStatus.stage)}</h3></div></div>
+            <dl className={styles.statusDetails}>
+              <div><dt>{t['deploy.status.lastTime']}</dt><dd>{deployStatus.lastDeployTime || t['deploy.status.unknownTime']}</dd></div>
+              {githubEnabled && <div><dt>{t['deploy.status.status']}</dt><dd><Badge status={deployStatus.hasDeployGit ? 'success' : 'default'} text={t[deployStatus.hasDeployGit ? 'deploy.status.inited' : 'deploy.status.notInited']} /></dd></div>}
+              <div><dt>{t['deploy.platform.enabledPlatforms']}</dt><dd><Space wrap size={4}>
+                {enabledTargets.includes('github') && <Tag icon={<GithubOutlined />}>GitHub</Tag>}
+                {enabledTargets.includes('cloudflare-pages') && <Tag icon={<CloudOutlined />}>Cloudflare</Tag>}
+                {enabledTargets.includes('edgeone-pages') && <Tag icon={<CloudServerOutlined />}>EdgeOne</Tag>}
+                {!enabledTargets.length && '—'}
+              </Space></dd></div>
+            </dl>
+            {deployStatus.isDeploying && <Progress percent={deployStatus.progress} status={deployStatus.error ? 'exception' : 'active'} size="small" />}
+            {deployStatus.error && <Alert type="error" showIcon message={deployStatus.error} />}
+            {canDeployAll && <Button type="primary" block icon={<ThunderboltOutlined />} loading={deployLoading === 'all'} onClick={() => executeDeploy(enabledTargets)} disabled={deployStatus.isDeploying || Boolean(deployLoading) || loadError}>{t['deploy.platform.deployAll']}</Button>}
+          </div>
+          <section className={styles.logPanel}>
+            <div className={styles.logHeading}><CodeOutlined /><h3>{t['deploy.log.title']}</h3><span>{deployStatus.logs.length}</span></div>
+            {deployStatus.logs.length > 0 ? <ol className={styles.deployLogs} aria-label={t['deploy.log.title']}>
+              {deployStatus.logs.map((log, index) => <li key={index}><span>{String(index + 1).padStart(2, '0')}</span><code>{log}</code></li>)}
+            </ol> : <div className={styles.emptyLogs}><RocketOutlined /><strong>{ui.noDeployLogs}</strong><p>{ui.noDeployLogsHint}</p></div>}
+          </section>
+        </aside>
+      </div>
+    </ManagementPage>
   )
 }
 

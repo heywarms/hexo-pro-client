@@ -21,21 +21,27 @@ export interface ArticleRowProps {
 export default function ArticleRow({ title, cover, meta, titleExtra, actions, onClick }: ArticleRowProps) {
     const { token } = antdTheme.useToken()
     const [broken, setBroken] = React.useState(false)
+    React.useEffect(() => setBroken(false), [cover])
     const vars = {
         '--row-hover-bg': token.controlItemBgHover,
         '--row-divider': token.colorSplit,
         '--thumb-bg': token.colorFillTertiary,
         '--thumb-icon': token.colorTextQuaternary,
-        '--row-radius': `${token.borderRadius}px`,
+        '--row-focus': token.colorPrimary,
     } as React.CSSProperties
 
     return (
-        <div className={styles.row} style={vars} onClick={onClick} role="button" tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' && onClick) onClick() }}>
+        <div className={styles.row} style={vars} onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+            onKeyDown={(e) => {
+                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ') && onClick) {
+                    e.preventDefault()
+                    onClick()
+                }
+            }}>
             <div className={styles.thumb}>
                 {cover && !broken
-                    ? <img src={cover} alt={title} loading="lazy" onError={() => setBroken(true)} />
-                    : <FileTextOutlined className={styles.thumbIcon} />}
+                    ? <img src={cover} alt="" loading="lazy" onError={() => setBroken(true)} />
+                    : <FileTextOutlined className={styles.thumbIcon} aria-hidden />}
             </div>
             <div className={styles.main}>
                 <div className={styles.titleLine}>

@@ -4,3 +4,7 @@ export const NEW_POST_EVENT = 'hexo-pro:new-post'
 export function requestNewPost() {
     window.dispatchEvent(new CustomEvent(NEW_POST_EVENT))
 }
+
+export function requestNewPage() {
+    window.dispatchEvent(new CustomEvent(NEW_POST_EVENT, { detail: { target: 'Page' } }))
+}
