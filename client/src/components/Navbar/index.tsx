@@ -1,4 +1,5 @@
 import React, { useContext, useRef, useState, useEffect } from "react"
+import { NEW_POST_EVENT } from "@/utils/newPostEvent"
 import _ from 'lodash'
 import styles from './style/index.module.less'
 import Logo from '@/assets/logo3.svg'
@@ -17,15 +18,16 @@ import { GlobalContext } from "@/context"
 import cs from 'classnames'
 import useDeviceDetect from "@/hooks/useDeviceDetect"
 import useRoute from "@/routes"
-import { base64Encode } from "@/utils/encodeUtils"
+import { documentRouteId } from "@/utils/documentIdentity"
 import { openDesktopLink } from "@/utils/desktopUtils"
 import SettingIcon from '../../assets/setting.svg'
 
 type NavbarProps = {
+    contentPage?: boolean;
     style?: React.CSSProperties; // 增加style属性
 }
 
-export default function Navbar({ style }: NavbarProps) { // 使用props中的style属性
+export default function Navbar({ style, contentPage = false }: NavbarProps) { // 使用props中的style属性
     const navigate = useNavigate()
     const userInfo = useSelector((state: GlobalState) => state.userInfo)
     const { theme, setTheme, setLang } = useContext(GlobalContext)
@@ -197,7 +199,7 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
                 const post = res.data
                 post.date = parseDateTime(post.date)
                 post.updated = parseDateTime(post.updated)
-                navigate(`/post/${base64Encode(post.permalink)}`)
+                navigate(`/post/${documentRouteId(post)}`)
             })
         } else {
             // 如果不存在，直接创建
@@ -205,7 +207,7 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
                 const post = res.data
                 post.date = parseDateTime(post.date)
                 post.updated = parseDateTime(post.updated)
-                navigate(`/post/${base64Encode(post.permalink)}`)
+                navigate(`/post/${documentRouteId(post)}`)
             })
         }
         setOpen(false)
@@ -267,7 +269,7 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
                 throw new Error('页面已创建，但未获取到页面链接')
             }
 
-            navigate(`/page/${base64Encode(page.permalink)}`)
+            navigate(`/page/${documentRouteId(page)}`)
         } catch (err) {
             console.log(err)
             api.error({ message: locale['error.title'], description: err.message })
@@ -308,6 +310,13 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
         }
     }, [])
 
+    // 内容页“新建文章”按钮通过事件复用这里的新建流程
+    useEffect(() => {
+        const onRequestNewPost = (event: Event) => handleCreateBlog({ key: (event as CustomEvent).detail?.target === 'Page' ? '2' : '1' } as any)
+        window.addEventListener(NEW_POST_EVENT, onRequestNewPost)
+        return () => window.removeEventListener(NEW_POST_EVENT, onRequestNewPost)
+    }, [])
+
     useEffect(() => {
         if (open && target === 'Post') {
             fetchCategoriesForCreate()
@@ -325,9 +334,9 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
 
     const onClickSerchitem = (item) => {
         if (!item.isPage) {
-            navigate(`/post/${base64Encode(item.permalink)}`)
+            navigate(`/post/${documentRouteId(item)}`)
         } else {
-            navigate(`/page/${base64Encode(item.permalink)}`)
+            navigate(`/page/${documentRouteId(item)}`)
         }
     }
 
@@ -393,11 +402,11 @@ export default function Navbar({ style }: NavbarProps) { // 使用props中的sty
                         onClick={theme === 'light' ? () => setTheme('dark') : () => setTheme('light')}
                     />
                 </li>
-                <li >
+                {!contentPage && <li >
                     <Dropdown menu={{ items: writeDropList, onClick: handleCreateBlog }}>
                         <Button type="primary" className={`${styles.customButtonHover} ${styles[theme]}`}>{locale['navbar.create']}<DownOutlined /></Button>
                     </Dropdown>
-                </li>
+                </li>}
                 {
                     userInfo && <li>
                         <Dropdown menu={{ items: settingDropList, onClick: handleLogout }}>

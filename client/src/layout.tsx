@@ -4,7 +4,7 @@ import Layout, { Content } from 'antd/es/layout/layout'
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './style/layout.module.less'
 import useRoute, { IRoute } from './routes'
-import { AppstoreOutlined, CloudUploadOutlined, CodeOutlined, DeleteOutlined, EditOutlined, FileTextOutlined, HomeOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PictureOutlined, SettingOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, CloudUploadOutlined, CloudSyncOutlined, CodeOutlined, DeleteOutlined, FileOutlined, FileTextOutlined, FolderOutlined, HomeOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PictureOutlined, SettingOutlined, SkinOutlined } from '@ant-design/icons'
 import useLocale from './hooks/useLocale'
 import lazyload from './utils/lazyload'
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
@@ -19,18 +19,24 @@ import service from './utils/api'
 
 type MenuItem = Required<MenuProps>['items'][number];
 
-const getIconFromKey = (key: string) => {
+const DashboardPage = lazyload(() => import('./pages/dashboard'))
+const PostEditorPage = lazyload(() => import('./pages/content/posts/post'))
+const PageEditorPage = lazyload(() => import('./pages/content/pages/page'))
+
+const getIconFromKey = (key: string): React.ReactNode => {
     switch (key) {
         case 'dashboard':
             return <HomeOutlined />
-        case 'content/posts/blogs':
-            return <EditOutlined />
-        case 'content/posts/drafts':
+        case 'posts':
             return <FileTextOutlined />
-        case 'content/pages':
-            return <AppstoreOutlined />
+        // 文章子项（已发布 / 草稿箱）不单独显示图标，保持层级清晰
+        case 'content/posts/blogs':
+        case 'content/posts/drafts':
+            return undefined
         case 'content/categories':
-            return <AppstoreOutlined />
+            return <FolderOutlined />
+        case 'content/pages':
+            return <FileOutlined />
         case 'content/images':
             return <PictureOutlined />
         case 'content/recycle':
@@ -39,12 +45,14 @@ const getIconFromKey = (key: string) => {
             return <CodeOutlined />
         case 'deploy':
             return <CloudUploadOutlined />
+        case 'sync':
+            return <CloudSyncOutlined />
         case 'theme-market':
-            return <AppstoreOutlined />
+            return <SkinOutlined />
         case 'settings':
             return <SettingOutlined />
         default:
-            return <HomeOutlined />
+            return <AppstoreOutlined />
     }
 }
 
@@ -72,11 +80,17 @@ function getFlatternRoute(routes): any[] {
 export default function PageLayout() {
     const navigate = useNavigate()
     const location = useLocation()
+    const isCollectionPage = ['/content/posts/blogs', '/content/posts/drafts', '/content/pages'].includes(location.pathname)
+    const isDashboardPage = ['/', '/dashboard'].includes(location.pathname)
+    const isEditorPage = /^\/(?:post|page)\/[^/]+\/?$/.test(location.pathname)
+    const isManagementPage = ['/content/categories', '/content/images', '/content/recycle', '/content/yaml', '/deploy', '/sync', '/theme-market', '/settings'].includes(location.pathname)
+    const isFlatPage = isCollectionPage || isDashboardPage || isEditorPage || isManagementPage
     const { isMobile } = useDeviceDetect()
     const [authChecking, setAuthChecking] = useState(true)
     const [isAuthenticated, setIsAuthenticated] = useState(false)
 
     const locale = useLocale()
+    const { theme } = useContext(GlobalContext)
 
     const currentComponent = qs.parseUrl(location.pathname).url.slice(1)
     const [routes, defaultRoute] = useRoute()
@@ -140,7 +154,12 @@ export default function PageLayout() {
 
     function reanderRoutes() {
         return function travel(_routes: IRoute[], level = 1): MenuItem[] {
-            return _routes.map((route) => {
+            return _routes.flatMap((route, index): MenuItem[] => [
+                // 分组之间加分割线
+                ...(level === 1 && route.children && index > 0 && _routes[index - 1].children
+                    ? [{ type: 'divider' as const, key: `divider-${route.key}` }]
+                    : []),
+                ((): MenuItem => {
                 if (!route.children) {
                     menuMap.current.set(route.key, { menuItem: true })
                     return {
@@ -148,6 +167,14 @@ export default function PageLayout() {
                         label: locale[route.name],
                         icon: getIconFromKey(route.key),
                         children: undefined
+                    }
+                } else if (level === 1) {
+                    // 顶层分组（内容管理 / 系统管理）渲染为带标题的分组
+                    return {
+                        type: 'group' as const,
+                        key: route.key,
+                        label: locale[route.name],
+                        children: travel(route.children, level + 1)
                     }
                 } else {
                     menuMap.current.set(route.key, { subMenu: true })
@@ -158,7 +185,8 @@ export default function PageLayout() {
                         children: travel(route.children, level + 1)
                     }
                 }
-            })
+                })(),
+            ])
         }
     }
 
@@ -182,7 +210,7 @@ export default function PageLayout() {
 
     const updateMenuStatus = useCallback(() => {
         const pathKeys = location.pathname.split('/')
-        const newSelectedKeys: string[] = []
+        const newSelectedKeys: string[] = location.pathname === '/' ? ['dashboard'] : []
         // console.log("pathKeys ===>", pathKeys)
         while (pathKeys.length > 0) {
             const currentRouteKey = pathKeys.join('/')
@@ -245,24 +273,28 @@ export default function PageLayout() {
     // }
 
     return (
-        <Layout className={styles.layout}>
-            <Navbar />
+        <Layout className={styles.layout} data-theme={theme} data-flat-page={isFlatPage}>
+            <Navbar contentPage={isCollectionPage} />
             <Layout>
                 <Sider
                     className={styles['layout-sider']}
+                    style={isMobile ? { display: 'none' } : undefined}
                     collapsed={collapsed}
                     collapsedWidth={isMobile ? 0 : 80}
-                    width={220}
-                    theme="light"
+                    width={212}
+                    theme={theme === 'dark' ? 'dark' : 'light'}
                 >
                     <Button type="default" onClick={toggleCollapsed} className={styles['collapse-btn']} size='small' >
                         {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
                     </Button>
                     <Menu
+                        theme={theme === 'dark' ? 'dark' : 'light'}
                         style={{ height: '100%' }}
                         selectedKeys={selectedKeys}
                         onClick={onClickItem}
                         mode={"inline"}
+                        defaultOpenKeys={['posts']}
+                        className={styles['side-menu']}
                         items={reanderRoutes()(routes, 1)}
                     >
                     </Menu>
@@ -270,10 +302,10 @@ export default function PageLayout() {
                 <Layout
                     className={styles['layout-content']}
                     style={{
-                        paddingLeft: isMobile ? 0 : (collapsed ? 30 : 15),
-                        paddingRight: isMobile ? 0 : (collapsed ? 30 : 15),
-                        paddingTop: isMobile ? 0 : 15,
-                        paddingBottom: isMobile ? 0 : 15
+                        paddingLeft: isMobile || isFlatPage ? 0 : (collapsed ? 30 : 15),
+                        paddingRight: isMobile || isFlatPage ? 0 : (collapsed ? 30 : 15),
+                        paddingTop: isMobile || isFlatPage ? 0 : 15,
+                        paddingBottom: isMobile || isFlatPage ? 0 : 15
                     }}
                 >
                     <div className={styles['layout-content-wrapper']}>
@@ -285,29 +317,29 @@ export default function PageLayout() {
                                         const rout = (<Route
                                             key={index}
                                             path={`/${route.key}`}
-                                            element={route.component.render()}
+                                            element={React.createElement(route.component)}
                                         />)
                                         return rout
                                     })
                                 }
                                 <Route path="/"
-                                    element={lazyload(() => import(`./pages/${defaultRoute}`)).render()}
+                                    element={<DashboardPage />}
                                 />
                                 <Route
                                     path="/post/:_id"
-                                    element={lazyload(() => import('./pages/content/posts/post')).render()}
+                                    element={<PostEditorPage />}
                                 />
                                 <Route
                                     path="/page/:_id"
-                                    element={lazyload(() => import('./pages/content/pages/page')).render()}
+                                    element={<PageEditorPage />}
                                 />
                                 <Route path="*"
-                                    element={lazyload(() => import(`./pages/${defaultRoute}`)).render()}
+                                    element={<DashboardPage />}
                                 />
                             </Routes>
                         </Content>
                     </div>
-                    <Footer />
+                    {!isFlatPage && <Footer />}
                 </Layout>
             </Layout>
         </Layout>

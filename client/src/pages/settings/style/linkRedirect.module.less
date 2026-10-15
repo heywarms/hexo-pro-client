@@ -1,0 +1,44 @@
+.card {
+  :global(.ant-typography-secondary) { color: var(--link-secondary-color); }
+
+  .recommendation,
+  .preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px;
+    border: 1px solid;
+    border-radius: 8px;
+
+    > button { flex-shrink: 0; }
+  }
+
+  .recommendation { margin: 20px 0 28px; }
+  .addressDetails { min-width: 0; }
+  .applied { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; }
+  .heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .url { margin: 8px 0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+  .toggleRow { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+  .toggleRow > div > div { margin-top: 4px; }
+  .field { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+  .field :global(.ant-alert) { margin-top: 4px; }
+  .preview { margin-top: 24px; }
+  .help { margin-top: 12px; }
+  .help :global(.ant-collapse-header) { padding-left: 0; }
+  .help :global(.ant-collapse-header-text),
+  .help :global(.ant-collapse-expand-icon) { color: var(--link-text-color); }
+  .help :global(.ant-collapse-content-box) { padding: 0; }
+  .helpContent { display: grid; gap: 8px; }
+  .helpContent :global(.ant-typography) { margin-bottom: 8px; }
+}
+
+@media (max-width: 600px) {
+  .card {
+    :global(.ant-card-body) { padding: 8px; }
+    .recommendation,
+    .preview { flex-direction: column; align-items: stretch; padding: 16px; gap: 12px; }
+    .toggleRow { align-items: flex-start; }
+    .toggleRow :global(.ant-switch) { flex-shrink: 0; }
+  }
+}

@@ -220,7 +220,7 @@ const UpdateSettingsCard: React.FC<UpdateSettingsCardProps> = ({ checkTrigger = 
             </Button>
           </div>
 
-          <div style={{ padding: '12px 16px', backgroundColor: '#f6f8fa', borderRadius: '6px', border: '1px solid #e1e4e8' }}>
+          <div style={{ padding: '12px 16px', backgroundColor: 'var(--manage-surface)', borderRadius: '6px', border: '1px solid var(--manage-line)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
               <Text strong>{t['settings.update.currentVersion'] || '当前版本'}</Text>
               <Text>{currentVersion}</Text>

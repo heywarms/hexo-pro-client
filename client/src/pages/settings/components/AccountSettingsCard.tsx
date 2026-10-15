@@ -7,6 +7,8 @@ import useLocale from '../../../hooks/useLocale'
 import defaultAvatar from '../../../assets/defaultAvatar2.png'
 import ImagePickerModal from './ImagePickerModal'
 import { useImagePicker } from '../hooks/useImagePicker'
+import styles from '../style/index.module.less'
+import systemLocale from '../../system/locale'
 
 const { Title } = Typography
 
@@ -19,6 +21,7 @@ type Props = {
 
 const AccountSettingsCard: React.FC<Props> = ({ isFirstUse, showTitle = true, showWelcomeAlert, onSkipSettings }) => {
   const t = useLocale()
+  const ui = useLocale(systemLocale)
   const dispatch = useDispatch()
   const [form] = Form.useForm()
 
@@ -236,18 +239,18 @@ const AccountSettingsCard: React.FC<Props> = ({ isFirstUse, showTitle = true, sh
           />
         )}
 
-        <Form form={form} layout="vertical" onFinish={isFirstUse ? onRegister : onFinish}>
-          <div style={{ marginBottom: 24, textAlign: 'center' }}>
-            <div style={{ marginBottom: 16 }}>
+        <Form form={form} className={styles.accountForm} layout="vertical" onFinish={isFirstUse ? onRegister : onFinish}>
+          <div className={styles.avatarRow}>
+            <div>
               <Avatar
-                size={100}
+                size={80}
                 src={avatarUrl}
                 icon={<UserOutlined />}
-                style={{ border: '1px solid #f0f0f0' }}
+                className={styles.avatar}
                 key={avatarUrl}
               />
             </div>
-            <Space>
+            <div className={styles.avatarDetails}><strong>{ui.avatar}</strong><p>{ui.avatarHint}</p><Space wrap>
               <Upload
                 name="data"
                 action="/hexopro/api/images/upload"
@@ -263,10 +266,11 @@ const AccountSettingsCard: React.FC<Props> = ({ isFirstUse, showTitle = true, sh
               <Button icon={<PictureOutlined />} onClick={openImagePicker}>
                 {t['settings.select.from.gallery']}
               </Button>
-            </Space>
+            </Space></div>
           </div>
 
-          <Form.Item label={t['settings.username']} name="username" rules={[{ required: true, message: t['settings.usernameRequired'] }]}>
+          <div className={styles.accountFields}>
+          <Form.Item className={styles.fullField} label={t['settings.username']} name="username" rules={[{ required: true, message: t['settings.usernameRequired'] }]}>
             <Input prefix={<UserOutlined />} placeholder={t['settings.usernamePlaceholder']} />
           </Form.Item>
 
@@ -349,8 +353,9 @@ const AccountSettingsCard: React.FC<Props> = ({ isFirstUse, showTitle = true, sh
             <Input placeholder={t['settings.securityAnswerPlaceholder']} />
           </Form.Item>
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />} style={{ width: '100%' }}>
+          </div>
+          <Form.Item className={styles.accountSave}>
+            <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
               {isFirstUse ? t['settings.createAccount'] : t['settings.saveAccountSettings']}
             </Button>
           </Form.Item>

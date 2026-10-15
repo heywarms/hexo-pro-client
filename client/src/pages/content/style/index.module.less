@@ -1,10 +1,23 @@
 .editor-page {
+    --editor-paper: #fff;
+    --editor-text: #292c33;
+    --editor-muted: #68717e;
+    --editor-line: #e9ebef;
+    --editor-line-strong: #dce0e6;
+    --editor-surface: #f6f7f9;
     display: flex;
     height: 100%;
     min-height: 0;
-    gap: 12px;
-    padding: 12px 16px 14px;
-    background: linear-gradient(180deg, #f7f8fc 0%, #f4f6fb 100%);
+    min-width: 0;
+    background: var(--editor-paper);
+    &[data-theme='dark'] {
+        --editor-paper: #1d1f23;
+        --editor-text: #e6e8ed;
+        --editor-muted: #a2a8b3;
+        --editor-line: #30333a;
+        --editor-line-strong: #42464f;
+        --editor-surface: #17191d;
+    }
 }
 
 .editor-layout {
@@ -13,37 +26,41 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    overflow: visible;
-    border-radius: 12px;
-    border: 1px solid #e6ebf5;
-    background-color: #ffffff;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+    min-width: 0;
+    overflow: hidden;
+    background-color: var(--editor-paper);
 }
 
 .editor-header {
-    position: sticky;
-    top: 0;
+    position: relative;
     z-index: 40;
-    backdrop-filter: blur(8px) saturate(130%);
 }
 
 .editor-main {
     width: 100%;
     flex: 1;
     min-height: 0;
-    padding: 0 12px 12px;
+    min-width: 0;
+    padding: 0;
     border: none;
+}
+
+.editor-workspace {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    > .editor-main { width: auto; }
 }
 
 .ai-panel-wrap {
     height: 100%;
     width: 380px;
     flex-shrink: 0;
-    border-radius: 12px;
-    border: 1px solid #e6ebf5;
+    border-left: 1px solid var(--editor-line);
     overflow: hidden;
-    background: #ffffff;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+    background: var(--editor-paper);
 }
 
 .editor-empty-hint {
@@ -70,21 +87,11 @@
     background-color: #ffffff;
     z-index: 102;
     padding: 16px;
-    border-radius: 12px;
 }
 
 @media (max-width: 768px) {
-    .editor-page {
-        padding: 8px;
-        gap: 8px;
-    }
-
-    .editor-layout {
-        border-radius: 10px;
-    }
-
     .editor-main {
-        padding: 0 6px 8px;
+        padding: 0;
     }
 
     .ai-panel-wrap {

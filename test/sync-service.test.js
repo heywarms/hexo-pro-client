@@ -9,8 +9,7 @@ const {
   buildAuthenticatedRepoUrl,
   maskSyncConfig,
   parseGitStatus,
-  runCommandDefault,
-  runPushWorkflow
+  runCommandDefault
 } = require('../hexo-pro/sync_service');
 
 test('runCommandDefault preserves Git identities and commit messages containing spaces', async (t) => {
@@ -55,11 +54,11 @@ test('buildAuthenticatedRepoUrl creates a temporary HTTPS URL without changing r
 
 test('DEFAULT_SYNC_IGNORE protects generated and local runtime files', () => {
   assert.ok(DEFAULT_SYNC_IGNORE.includes('node_modules/'));
-  assert.ok(DEFAULT_SYNC_IGNORE.includes('public/'));
-  assert.ok(DEFAULT_SYNC_IGNORE.includes('.deploy_git/'));
-  assert.ok(DEFAULT_SYNC_IGNORE.includes('deploy_config.json'));
-  assert.ok(DEFAULT_SYNC_IGNORE.includes('sync_config.json'));
-  assert.ok(DEFAULT_SYNC_IGNORE.includes('data/*.db'));
+  assert.ok(DEFAULT_SYNC_IGNORE.includes('/public/'));
+  assert.ok(DEFAULT_SYNC_IGNORE.includes('/.deploy_git/'));
+  assert.ok(DEFAULT_SYNC_IGNORE.includes('/deploy_config.json'));
+  assert.ok(DEFAULT_SYNC_IGNORE.includes('/sync_config.json'));
+  assert.ok(DEFAULT_SYNC_IGNORE.includes('/data/*.db'));
 });
 
 test('parseGitStatus detects dirty and clean states', () => {
@@ -72,39 +71,4 @@ test('parseGitStatus detects dirty and clean states', () => {
     dirty: true,
     files: ['source/_posts/a.md', 'source/images/a.png']
   });
-});
-
-test('runPushWorkflow refuses to push when remote branch is ahead', async () => {
-  const commands = [];
-
-  await assert.rejects(
-    () => runPushWorkflow({
-      baseDir: '/tmp/blog',
-      config: {
-        repository: 'user/blog',
-        branch: 'main',
-        githubToken: 'token'
-      },
-      runCommand: async (command, args, options) => {
-        commands.push({ command, args, cwd: options.cwd });
-        const commandText = `${command} ${args.join(' ')}`;
-        if (commandText === 'git rev-parse --is-inside-work-tree') {
-          throw new Error('not a git repo');
-        }
-        if (commandText === 'git status --porcelain') {
-          return ' M source/_posts/a.md\n';
-        }
-        if (commandText === 'git rev-list --count HEAD..origin/main') {
-          return '1\n';
-        }
-        return '';
-      },
-      writeSyncIgnore: async () => {},
-      addLog: () => {}
-    }),
-    /远端分支有更新/
-  );
-
-  assert.ok(commands.some((item) => item.command === 'git' && item.args[0] === 'fetch' && item.args[1].startsWith('https://x-access-token:token@github.com/user/blog.git')));
-  assert.ok(!commands.some((item) => item.command === 'git' && item.args[0] === 'push'));
 });

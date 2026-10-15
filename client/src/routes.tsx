@@ -69,12 +69,11 @@ export default function useRoute(): [IRoute[], string] {
               name: 'menu.posts.drafts',
               key: 'content/posts/drafts',
             },
-            {
-              name: 'menu.categories',
-              key: 'content/categories',
-            }
-
           ]
+        },
+        {
+          name: 'menu.categories',
+          key: 'content/categories',
         },
         {
           name: 'menu.pages',
@@ -106,6 +105,10 @@ export default function useRoute(): [IRoute[], string] {
           key: 'deploy',
         },
         {
+          name: 'menu.sync',
+          key: 'sync',
+        },
+        {
           name: 'menu.themeMarket',
           key: 'theme-market',
         },
@@ -129,6 +132,6 @@ export default function useRoute(): [IRoute[], string] {
   }, [finalRoutes])
 
 
-  return [routes, defaultRoute]
+  return [finalRoutes, defaultRoute]
 }
 

@@ -32,6 +32,14 @@
     background-color: #fff;
 }
 
+.layout[data-theme='dark'] .layout-sider {
+    background: #17191d;
+    :global(.ant-menu) { background: #17191d; }
+    :global(.ant-menu-item), :global(.ant-menu-submenu-title) { color: #b4bbc7; }
+    :global(.ant-menu-item-selected) { background: #263247; color: #a7beff; }
+    .collapse-btn { background: #1d1f23; border-color: #42464f; color: #b4bbc7; }
+}
+
 .sub-layout-1 {
     // padding-top: 60px;
     height: calc(100vh - 100px);
@@ -89,4 +97,57 @@
     .layout-content-wrapper {
         padding: 10px;
     }
+}
+
+/* 侧边栏分组标题与选中态 */
+.side-menu {
+    :global(.ant-menu-item-group-title) {
+        font-size: 12px;
+        padding-top: 12px;
+    }
+    :global(.ant-menu-item-divider) {
+        margin: 8px 16px;
+    }
+}
+
+/* Flat pages fill the space below the navbar without outer gutters or a footer. */
+.layout[data-flat-page='true'] {
+    .layout-content, .layout-content-wrapper, .layout-sider {
+        height: calc(100vh - 60px) !important;
+    }
+    .layout-content, .layout-content-wrapper { background: #fff; }
+    .layout-content-wrapper { padding: 0; }
+    &[data-theme='dark'] {
+        .layout-content, .layout-content-wrapper { background: #1d1f23; }
+    }
+}
+
+.side-menu:global(.ant-menu) {
+    padding: 12px 12px 56px;
+    border-inline-end: 1px solid #e9edf3;
+    overflow-y: auto;
+    font-size: 15px;
+    :global(.ant-menu-item), :global(.ant-menu-submenu-title) {
+        width: 100%;
+        height: 44px;
+        line-height: 44px;
+        margin: 4px 0;
+        padding-inline: 14px !important;
+        border-radius: 8px;
+    }
+    :global(.ant-menu-item-icon) { font-size: 20px; }
+    :global(.ant-menu-item-group-title) {
+        color: #7c859b;
+        font-size: 13px;
+        padding: 20px 12px 8px;
+    }
+    :global(.ant-menu-sub) { background: transparent; }
+    :global(.ant-menu-sub .ant-menu-item) { padding-inline-start: 54px !important; height: 40px; line-height: 40px; }
+    :global(.ant-menu-item-selected) { color: #1677ff; background: #eaf4ff; }
+    :global(.ant-menu-item-divider) { margin: 24px 8px 0; }
+}
+.layout[data-theme='dark'] .side-menu:global(.ant-menu) { border-color: #303641; }
+.side-menu:global(.ant-menu-inline-collapsed) {
+    padding-inline: 8px;
+    :global(.ant-menu-item), :global(.ant-menu-submenu-title) { padding-inline: 22px !important; }
 }

@@ -1,0 +1,65 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const { test } = require('node:test');
+const { createRequire } = require('node:module');
+const requireCore = createRequire(path.resolve(__dirname, '../hexo-pro/package.json'));
+const Hexo = requireCore('hexo');
+const frontMatter = requireCore('hexo-front-matter');
+const update = require('../hexo-pro/update');
+const { ensureDocumentId } = require('../hexo-pro/document_identity');
+
+test('saving a renamed article preserves its identity, content and front matter across later edits', async t => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), 'hexo-pro-editor-save-'));
+    await fs.mkdir(path.join(base, 'source/_posts'), { recursive: true });
+    await fs.writeFile(path.join(base, 'package.json'), JSON.stringify({ name: 'save-fixture', version: '1.0.0', hexo: { version: Hexo.version } }));
+    await fs.writeFile(path.join(base, '_config.yml'), 'url: https://example.test\npermalink: :year/:month/:day/:title/\n');
+    await fs.writeFile(path.join(base, 'source/_posts/original.md'), '---\ntitle: Original\ndate: 2020-01-01\ncustom: Keep this\ntags: [Writing]\n---\nOriginal body\n');
+    const hexo = new Hexo(base, { silent: true });
+    hexo.extend.renderer.register('md', 'html', data => '<p>' + data.text + '</p>', true);
+    t.after(async () => { hexo.unwatch(); await fs.rm(base, { recursive: true, force: true }); });
+    await hexo.init();
+    await hexo.load();
+    const post = hexo.model('Post').toArray()[0];
+    const permalink = post.permalink;
+    const originalDate = post.date.valueOf();
+    const id = ensureDocumentId(hexo, post);
+    const save = changes => new Promise((resolve, reject) => update('Post', id, changes, (error, result) => error ? reject(error) : resolve(result), hexo));
+
+    const renamed = await save({ title: 'Renamed', source: '_posts/renamed.md', _content: '# New body\n\n**Keep formatting**\n' });
+    assert.notEqual(renamed.permalink, permalink);
+    assert.equal(ensureDocumentId(hexo, renamed), id);
+    assert.equal(renamed.title, 'Renamed');
+    await assert.rejects(fs.access(path.join(base, 'source/_posts/original.md')));
+    let raw = frontMatter.parse(await fs.readFile(path.join(base, 'source/_posts/renamed.md'), 'utf8'));
+    assert.equal(raw._content, '# New body\n\n**Keep formatting**\n');
+    assert.equal(raw.custom, 'Keep this');
+    assert.deepEqual(raw.tags, ['Writing']);
+    assert.equal(raw.permalink, undefined);
+    assert.equal(raw.hexo_pro_id, undefined);
+    assert.equal(renamed.date.valueOf(), originalDate);
+
+    const metadata = await save({ frontMatter: { custom: 'Updated setting' }, tags: ['Writing'] });
+    assert.equal(ensureDocumentId(hexo, metadata), id);
+    const again = await save({ _content: 'Second save\n' });
+    assert.equal(ensureDocumentId(hexo, again), id);
+    raw = frontMatter.parse(await fs.readFile(path.join(base, 'source/_posts/renamed.md'), 'utf8'));
+    assert.equal(raw.custom, 'Updated setting');
+    assert.equal(raw._content, 'Second save\n');
+
+    // The properties sidebar sends a complete metadata snapshot while body edits
+    // continue through the same document writer. Preserve every value's type.
+    await save({ frontMatter: { comments: false, sticky: 0, label: 'false', empty: '', gallery: { images: ['一.jpg', 'two.jpg'], options: null } }, tags: ['随笔', 'Hexo'], categories: [['技术', '前端']] });
+    await save({ _content: 'Body after property edits\n' });
+    raw = frontMatter.parse(await fs.readFile(path.join(base, 'source/_posts/renamed.md'), 'utf8'));
+    assert.equal(raw.comments, false);
+    assert.equal(raw.sticky, 0);
+    assert.equal(raw.label, 'false');
+    assert.equal(raw.empty, '');
+    assert.deepEqual(raw.gallery, { images: ['一.jpg', 'two.jpg'], options: null });
+    assert.deepEqual(raw.categories, [['技术', '前端']]);
+    assert.deepEqual(raw.tags, ['随笔', 'Hexo']);
+    assert.equal(raw.custom, undefined);
+    assert.equal(raw._content, 'Body after property edits\n');
+});

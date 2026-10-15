@@ -431,7 +431,7 @@ const StorageSettingsCard: React.FC = () => {
         </div>
       )}
 
-      <div style={{ marginTop: 16, padding: '12px 16px', backgroundColor: '#f6f8fa', borderRadius: '6px', border: '1px solid #e1e4e8' }}>
+      <div style={{ marginTop: 16, padding: '12px 16px', backgroundColor: 'var(--manage-surface)', borderRadius: '6px', border: '1px solid var(--manage-line)' }}>
         <Text type="secondary" style={{ fontSize: '12px' }}>
           {t['settings.storageAutoSave'] || '图床设置会自动保存，无需点击保存按钮'}
         </Text>

@@ -1,10 +1,12 @@
-import React, { useCallback, useContext, useEffect } from 'react'
-import { Spin, Tabs, message } from 'antd'
+import React, { useCallback, useEffect } from 'react'
+import { Alert, Button, Spin, Tabs, message } from 'antd'
 import { ApiOutlined, CloudOutlined, CloudSyncOutlined, EditOutlined, LinkOutlined, PictureOutlined, QuestionCircleOutlined, ThunderboltOutlined, UserOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import styles from './style/index.module.less'
 import useLocale from '../../hooks/useLocale'
-import { GlobalContext } from '@/context'
+import useDeviceDetect from '@/hooks/useDeviceDetect'
+import ManagementPage from '../content/components/ManagementPage'
+import systemLocale from '../system/locale'
 import { useFirstUse } from './hooks/useFirstUse'
 import AccountSettingsCard from './components/AccountSettingsCard'
 import LinkRedirectSettingsCard from './components/LinkRedirectSettingsCard'
@@ -18,7 +20,8 @@ import GitHubSyncSettingsCard from './components/GitHubSyncSettingsCard'
 
 const SettingsPage: React.FC = () => {
   const t = useLocale()
-  const { theme } = useContext(GlobalContext)
+  const ui = useLocale(systemLocale)
+  const { isMobile } = useDeviceDetect()
   const [searchParams, setSearchParams] = useSearchParams()
   const [checkTrigger, setCheckTrigger] = React.useState(0)
   const tabParam = searchParams.get('tab')
@@ -31,7 +34,7 @@ const SettingsPage: React.FC = () => {
     window.location.href = '/pro'
   }, [t])
 
-  const { isFirstUse, loading, error } = useFirstUse()
+  const { isFirstUse, loading, error, refresh } = useFirstUse()
 
   useEffect(() => {
     if (!error) return
@@ -62,113 +65,33 @@ const SettingsPage: React.FC = () => {
     [searchParams, setSearchParams],
   )
 
+  const sections = [
+    { key: 'account', label: ui.accountTitle, icon: <UserOutlined />, description: ui.accountDescription, content: <AccountSettingsCard isFirstUse={false} showTitle={false} showWelcomeAlert={false} onSkipSettings={skipSettings} /> },
+    { key: 'link', label: t['settings.linkRedirectTitle'], icon: <LinkOutlined />, description: ui.linkDescription, content: <LinkRedirectSettingsCard /> },
+    { key: 'editor', label: t['settings.editorTitle'], icon: <EditOutlined />, description: ui.editorDescription, content: <EditorSettingsCard /> },
+    { key: 'display', label: t['settings.displayTitle'], icon: <PictureOutlined />, description: ui.displayDescription, content: <DisplaySettingsCard /> },
+    { key: 'storage', label: t['settings.storageTitle'], icon: <CloudOutlined />, description: ui.storageDescription, content: <StorageSettingsCard /> },
+    { key: 'sync', label: 'GitHub 云同步', icon: <CloudSyncOutlined />, description: ui.syncSettingsDescription, content: <GitHubSyncSettingsCard /> },
+    { key: 'ai', label: t['ai.config'], icon: <ThunderboltOutlined />, description: ui.aiDescription, content: <AISettingsCard /> },
+    { key: 'mcp', label: 'MCP Server', icon: <ApiOutlined />, description: ui.mcpDescription, content: <MCPSettingsCard /> },
+    { key: 'help', label: t['settings.helpTitle'], icon: <QuestionCircleOutlined />, description: ui.helpDescription, content: <UpdateSettingsCard checkTrigger={checkTrigger} /> },
+  ]
+
   return (
-    <div className={styles.container} data-theme={theme}>
+    <ManagementPage sectionTitle={ui.system} title={ui.settingsTitle} description={ui.settingsDescription} className={styles.container}>
       <Spin spinning={loading}>
-        {isFirstUse == null ? null : isFirstUse ? (
-          <AccountSettingsCard isFirstUse showWelcomeAlert onSkipSettings={skipSettings} />
+        {error ? <Alert type="error" showIcon message={t['settings.checkSystemStatusFailed']} action={<Button onClick={refresh}>{ui.retry}</Button>} /> : isFirstUse == null ? null : isFirstUse ? (
+          <div className={styles.firstUse}><AccountSettingsCard isFirstUse showWelcomeAlert onSkipSettings={skipSettings} /></div>
         ) : (
-          <Tabs
-            className={styles.settingsTabs}
-            activeKey={activeTab}
-            onChange={onTabChange}
-            animated={{ inkBar: false, tabPane: false }}
-            items={[
-              {
-                key: 'account',
-                label: (
-                  <span className={styles.tabLabel}>
-                    <UserOutlined className={styles.tabIcon} />
-                    {t['settings.title']}
-                  </span>
-                ),
-                children: <AccountSettingsCard isFirstUse={false} showTitle={false} showWelcomeAlert={false} onSkipSettings={skipSettings} />,
-              },
-              {
-                key: 'link',
-                label: (
-                  <span className={styles.tabLabel}>
-                    <LinkOutlined className={styles.tabIcon} />
-                    {t['settings.linkRedirectTitle']}
-                  </span>
-                ),
-                children: <LinkRedirectSettingsCard />,
-              },
-              {
-                key: 'editor',
-                label: (
-                  <span className={styles.tabLabel}>
-                    <EditOutlined className={styles.tabIcon} />
-                    {t['settings.editorTitle']}
-                  </span>
-                ),
-                children: <EditorSettingsCard />,
-              },
-              {
-                key: 'display',
-                label: (
-                  <span className={styles.tabLabel}>
-                    <PictureOutlined className={styles.tabIcon} />
-                    {t['settings.displayTitle']}
-                  </span>
-                ),
-                children: <DisplaySettingsCard />,
-              },
-              {
-                key: 'storage',
-                label: (
-                  <span className={styles.tabLabel}>
-                    <CloudOutlined className={styles.tabIcon} />
-                    {t['settings.storageTitle'] || '图床设置'}
-                  </span>
-                ),
-                children: <StorageSettingsCard />,
-              },
-              {
-                key: 'sync',
-                label: (
-                  <span className={styles.tabLabel}>
-                    <CloudSyncOutlined className={styles.tabIcon} />
-                    GitHub 云同步
-                  </span>
-                ),
-                children: <GitHubSyncSettingsCard />,
-              },
-              {
-                key: 'ai',
-                label: (
-                  <span className={styles.tabLabel}>
-                    <ThunderboltOutlined className={styles.tabIcon} />
-                    {t['ai.config']}
-                  </span>
-                ),
-                children: <AISettingsCard />,
-              },
-              {
-                key: 'mcp',
-                label: (
-                  <span className={styles.tabLabel}>
-                    <ApiOutlined className={styles.tabIcon} />
-                    MCP Server
-                  </span>
-                ),
-                children: <MCPSettingsCard />,
-              },
-              {
-                key: 'help',
-                label: (
-                  <span className={styles.tabLabel}>
-                    <QuestionCircleOutlined className={styles.tabIcon} />
-                    {t['settings.helpTitle'] || '帮助与更新'}
-                  </span>
-                ),
-                children: <UpdateSettingsCard checkTrigger={checkTrigger} />,
-              },
-            ]}
-          />
+          <Tabs className={styles.settingsTabs} activeKey={activeTab} onChange={onTabChange} tabPosition={isMobile ? 'top' : 'left'}
+            animated={{ inkBar: false, tabPane: false }} aria-label={ui.settingsNavigation}
+            items={sections.map(section => ({key: section.key,
+              label: <span className={styles.tabLabel}>{section.icon}{section.label}</span>,
+              children: <section className={styles.sectionContent}><div className={styles.sectionHeading}><h2>{section.label}</h2><p>{section.description}</p></div>{section.content}</section>,
+            }))} />
         )}
       </Spin>
-    </div>
+    </ManagementPage>
   )
 }
 

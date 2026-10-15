@@ -18,25 +18,13 @@ const service = axios.create({
     }
 })
 
-// 检查是否为桌面环境的辅助函数
-function isDesktopEnvironment(): boolean {
-    return typeof window !== 'undefined' && 
-           typeof window.electronAPI === 'object' && 
-           window.electronAPI !== null
-}
-
 service.interceptors.request.use(config => {
     // 在这里可以为每个请求添加请求头
     // 如果请求配置中已经有 Authorization 头，则优先使用它
-    if (config.headers && config.headers['Authorization']) {
-        console.log('[API Interceptor]: 使用请求中预设的 Authorization 头')
-    } else {
+    if (!config.headers?.['Authorization']) {
         const token = localStorage.getItem('hexoProToken')
         if (token) {
-            console.log('[API Interceptor]: 从 localStorage 设置 Authorization 头')
             config.headers['Authorization'] = 'Bearer ' + token
-        } else {
-            console.log('[API Interceptor]: 发送请求，无预设或localStorage token', config.url)
         }
     }
     return config
@@ -68,17 +56,23 @@ export const injectNavigate = (navigate: any) => {
     globalNavigate = navigate
 }
 
+function rejectUnauthorized(response) {
+    localStorage.removeItem('hexoProToken')
+    if (!window.location.pathname.includes('/pro/login')) {
+        window.location.href = '/pro/login?reason=token_invalid_or_missing'
+    }
+    const error = new Error(response?.data?.message || response?.data?.msg || '登录已失效，请重新登录') as ApiError
+    error.name = 'API_ERROR'
+    error.code = 401
+    error.response = response
+    return Promise.reject(error)
+}
+
 service.interceptors.response.use((resp) => {
-    // 处理401未授权
-    if (resp.data?.code === 401) {
-        localStorage.removeItem('hexoProToken')
-        // 添加路径检查防止重定向循环
-        // 在桌面端，如果已经在登录页面，则不进行重定向
-        if (isDesktopEnvironment() && window.location.pathname.includes('/pro/login')) {
-            console.log('[API Interceptor]: 桌面端且已在登录页，阻止重定向')
-        } else if (!window.location.pathname.includes('/pro/login')) {
-            window.location.href = '/pro/login?reason=token_invalid_or_missing'
-        }
+    // Legacy servers encode expired sessions in an HTTP 200 response. Reject
+    // that response too, so save queues keep the unsaved recovery copy.
+    if (resp.status === 401 || resp.data?.code === 401) {
+        return rejectUnauthorized(resp)
     }
 
     // 处理业务层级错误（400+状态码）
@@ -99,19 +93,12 @@ service.interceptors.response.use((resp) => {
     const error = new ApiError(errorMsg,)
     error.code = response?.status || 'NETWORK_ERROR'
     error.config = config
+    error.response = response
 
     // 统一错误处理
     switch (error.code) {
         case 401:
-            localStorage.removeItem('hexoProToken')
-            // 这里也要修改
-            // 在桌面端，如果已经在登录页面，则不进行重定向
-            if (isDesktopEnvironment() && window.location.pathname.includes('/pro/login')) {
-                console.log('[API Interceptor Error]: 桌面端且已在登录页，阻止重定向')
-            } else if (!window.location.pathname.includes('/pro/login')) {
-                window.location.href = '/pro/login?reason=token_invalid_or_missing'
-            }
-            break
+            return rejectUnauthorized(response)
         case 404:
             message.error(`资源未找到: ${errorMsg}`)
             globalNavigate?.(`/not-found?from=${encodeURIComponent(config.url)}`)

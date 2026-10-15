@@ -49,7 +49,7 @@ test('createDraft maps title, content, tags, and categories to Hexo Pro API call
   assert.strictEqual(result.permalink, 'https://example.com/hello/');
   assert.deepStrictEqual(calls, [
     ['request', 'POST', '/posts/new', { title: 'Hello', tags: ['agent'], categories: ['notes'] }],
-    ['updatePost', 'https://example.com/hello/', { _content: '# Hello' }]
+    ['updatePost', { documentId: undefined, permalink: 'https://example.com/hello/', content: '# Hello' }]
   ]);
 });
 
@@ -77,6 +77,23 @@ test('MCP token switches client calls to MCP agent endpoints', async () => {
     requests[0].options.body,
     JSON.stringify({ permalink: 'https://example.com/hello/' })
   );
+});
+
+test('stable document IDs work across get, update and publish without a permalink', async () => {
+  const calls = [];
+  const client = new HexoProAgentClient({ baseUrl: 'http://127.0.0.1:4000' });
+  client.request = async (...args) => { calls.push(args); return {}; };
+  const documentId = '04e40ec7-9cb1-499a-8f6f-bbfc3a3d850d';
+  await client.getPost({ documentId });
+  await client.updatePost({ documentId, content: 'New body' });
+  await client.publishPost({ documentId });
+  await client.unpublishPost({ documentId });
+  assert.deepStrictEqual(calls, [
+    ['GET', `/posts/${documentId}`],
+    ['POST', `/post/update/${documentId}`, { _content: 'New body' }],
+    ['POST', `/posts/${documentId}/publish`, {}],
+    ['POST', `/posts/${documentId}/unpublish`, {}]
+  ]);
 });
 
 test('tool definitions expose Hermes-friendly names with JSON schemas', () => {
