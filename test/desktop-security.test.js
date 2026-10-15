@@ -477,3 +477,66 @@ test('copy-core requires the authentication and document-write security helpers 
     error.message.includes('auth_security.js') && error.message.includes('document_write.js'));
   await assert.rejects(fsp.access(targetDir));
 });
+
+test('GitHub project dialog isolates queries and submissions to its own top-level frame and cleans up on cancel', async () => {
+  const { desktop, windows, FakeWindow, ipcMain, event } = desktopFixture();
+  const queries = [];
+  const dialog = loadIsolated(path.join(mainDir, 'project-source-dialog.js'), {
+    electron: { BrowserWindow: FakeWindow, ipcMain },
+    './github-project': {
+      queryGitHub: async request => { queries.push(request); return { items: [] }; },
+      validateConnection: input => ({ repository: input.repository, branch: input.branch, githubToken: input.githubToken })
+    }
+  }).value;
+  const pending = dialog.showProjectSourceDialog(desktop.mainWindow);
+  const window = windows.at(-1);
+  assertSandbox(window);
+  ipcMain.emit('project-source-query', event(desktop.mainWindow), { id: 1, githubToken: 'test' });
+  ipcMain.emit('project-source-query', { ...event(window), senderFrame: { url: window.webContents.getURL() } }, { id: 2 });
+  assert.equal(queries.length, 0);
+  const reply = new Promise(resolve => window.webContents.once('project-source-response', resolve));
+  ipcMain.emit('project-source-query', event(window), { id: 3, action: 'repositories', githubToken: 'test' });
+  assert.equal((await reply).id, 3);
+  assert.equal(queries.length, 1);
+  ipcMain.emit('project-source-result', event(desktop.mainWindow), { success: false });
+  ipcMain.emit('project-source-result', event(window), { success: true, source: 'github', projectName: '../outside' });
+  assert.equal(window.isDestroyed(), false);
+  ipcMain.emit('project-source-result', event(window), { success: true, source: 'github', projectName: 'my-blog', repository: 'test/blog', branch: 'writing', githubToken: 'test' });
+  assert.equal((await pending).branch, 'writing');
+  assert.equal(ipcMain.listenerCount('project-source-query'), 0);
+  assert.equal(ipcMain.listenerCount('project-source-result'), 0);
+  const cancelled = dialog.showProjectSourceDialog(desktop.mainWindow);
+  ipcMain.emit('project-source-result', event(windows.at(-1)), { success: false });
+  assert.equal((await cancelled).success, false);
+  assert.equal(ipcMain.listenerCount('project-source-query'), 0);
+});
+
+test('new-project flow imports the chosen branch without requiring Hexo CLI and never overwrites an existing directory', async () => {
+  const calls = [];
+  let selection = { success: true, source: 'github', projectName: 'blog', repository: 'test/blog', branch: 'writing', githubToken: 'test' };
+  let exists = false;
+  const loaded = loadIsolated(path.join(mainDir, 'main.js'), {
+    electron: { dialog: {
+      showOpenDialog: async () => ({ canceled: false, filePaths: ['/parent'] }),
+      showMessageBox: async () => { calls.push('existing-directory'); },
+      showErrorBox: (...args) => { throw new Error(args.join(' ')); }
+    } },
+    'fs-extra': { pathExists: async () => exists },
+    'electron-updater': { autoUpdater: null }, './hexo-server': {}, './auth-manager': {},
+    './project-source-dialog': { showProjectSourceDialog: async () => selection }
+  });
+  const desktop = Object.create(loaded.value.prototype);
+  desktop.checkSystemDependencies = async () => { throw new Error('GitHub import should not require global Hexo CLI'); };
+  desktop.createProjectWithProgress = async (...args) => calls.push(args);
+  await desktop.createNewProject();
+  assert.equal(calls[0][0], path.join('/parent', 'blog'));
+  assert.equal(calls[0][2].branch, 'writing');
+  assert.equal(desktop.isCreatingProject, false);
+  exists = true;
+  await desktop.createNewProject();
+  assert.equal(calls.at(-1), 'existing-directory');
+  assert.equal(calls.length, 2);
+  selection = { success: false };
+  await desktop.createNewProject();
+  assert.equal(calls.length, 2);
+});

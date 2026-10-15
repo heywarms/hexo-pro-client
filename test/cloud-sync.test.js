@@ -223,3 +223,92 @@ test('cloud pulls keep local deployment settings while syncing the other Hexo se
   assert.match(await f.read(f.base, '_config.yml'), /Renamed/);
   assert.deepEqual((await f.preview()).changes, []);
 });
+
+test('restore uses GitHub for the whole source tree, backs up template-only files, and never pushes', async t => {
+  const f = await fixture(t);
+  const article = '---\r\ntitle: Remote blog\r\ncustom: unchanged\r\n---\r\nRemote body';
+  await f.phoneUpdate({
+    'package.json': JSON.stringify({ dependencies: { hexo: '^8.0.0' } }),
+    'source/_posts/a.md': article,
+    'source/images/remote.png': 'remote-image-bytes',
+    'themes/custom/layout.ejs': '<main>Remote theme</main>',
+    [identityPath]: index([record(thirdId, '_posts/a.md')])
+  });
+  await f.write(f.base, 'source/_posts/hello-world.md', 'Default template post');
+  await f.write(f.base, '.gitignore', 'node_modules/\nthemes/\n');
+  const head = await f.git(f.root, ['--git-dir', f.remote, 'rev-parse', 'main']);
+  const plan = await f.cloud.preview(config, 'restore');
+  assert.equal(plan.mode, 'restore');
+  assert.equal(plan.uploadCount, 0);
+  assert.equal(plan.conflictCount, 0);
+  assert.ok(plan.changes.every(change => change.direction === 'download'));
+  assert.ok(plan.changes.some(change => change.path === 'themes/custom/layout.ejs'), 'template ignore rules must not hide remote themes');
+  const result = await f.cloud.apply(config, plan.id);
+  assert.equal(result.uploaded, 0);
+  assert.equal(await f.read(f.base, 'source/_posts/a.md'), article);
+  assert.equal(await f.read(f.base, 'themes/custom/layout.ejs'), '<main>Remote theme</main>');
+  assert.equal(await f.read(f.base, 'source/images/remote.png'), 'remote-image-bytes');
+  assert.equal(await f.read(f.base, identityPath), index([record(thirdId, '_posts/a.md')]));
+  assert.equal(await f.read(result.backupDir, 'source/_posts/hello-world.md'), 'Default template post');
+  await assert.rejects(f.read(f.base, 'source/_posts/hello-world.md'), { code: 'ENOENT' });
+  assert.equal(await f.read(f.base, 'deploy_config.json'), '{"token":"private"}');
+  assert.equal(await f.git(f.root, ['--git-dir', f.remote, 'rev-parse', 'main']), head);
+  assert.equal(f.calls.some(args => args[0] === 'push'), false);
+  assert.deepEqual((await f.preview()).changes, []);
+  await f.assertOriginalGit();
+});
+
+test('restoring legacy sources does not generate or upload identity records', async t => {
+  const f = await fixture(t);
+  await f.phoneUpdate({ 'package.json': JSON.stringify({ dependencies: { hexo: '^8.0.0' } }) });
+  const head = await f.git(f.root, ['--git-dir', f.remote, 'rev-parse', 'main']);
+  const plan = await f.cloud.preview(config, 'restore');
+  const result = await f.cloud.apply(config, plan.id);
+  assert.equal(result.uploaded, 0);
+  await assert.rejects(f.read(f.base, identityPath), { code: 'ENOENT' });
+  assert.equal(await f.git(f.root, ['--git-dir', f.remote, 'rev-parse', 'main']), head);
+  assert.equal(await f.read(result.backupDir, identityPath), index([record(firstId, '_posts/a.md')]));
+});
+
+test('restore refuses empty and published-only repositories without touching local files', async t => {
+  for (const empty of [true, false]) {
+    const f = await fixture(t, empty);
+    const original = await f.read(f.base, 'source/_posts/a.md');
+    await assert.rejects(f.cloud.preview(config, 'restore'), /空的|源码仓库/);
+    assert.equal(await f.read(f.base, 'source/_posts/a.md'), original);
+    assert.equal(f.calls.some(args => args[0] === 'push'), false);
+  }
+});
+
+test('restore rejects stale previews and unsupported modes', async t => {
+  const f = await fixture(t);
+  await f.phoneUpdate({ 'package.json': JSON.stringify({ dependencies: { hexo: '^8.0.0' } }) });
+  await assert.rejects(f.cloud.preview(config, 'invalid-mode'), /请选择/);
+  const plan = await f.cloud.preview(config, 'restore');
+  await f.phoneUpdate({ 'source/_posts/a.md': 'Remote edited after preview' });
+  await assert.rejects(f.cloud.apply(config, plan.id), /刚更新了 GitHub/);
+  assert.match(await f.read(f.base, 'source/_posts/a.md'), /Original body/);
+});
+
+test('restore includes tracked files even if remote ignore rules hide them, while skipping generated output', async t => {
+  const f = await fixture(t);
+  await f.phoneUpdate({
+    'package.json': JSON.stringify({ dependencies: { hexo: '^8.0.0' } }),
+    '_config.yml': 'title: Remote\npublic_dir: output/site\n',
+    'themes/remote/layout.ejs': '<main>Tracked theme</main>',
+    '_config.theme.yml': 'color: blue\n',
+    'output/site/index.html': '<main>Generated output</main>',
+    'public/handwritten.txt': 'Source asset'
+  });
+  await f.phoneUpdate({ '.gitignore': 'node_modules/\nthemes/\n_config.theme.yml\noutput/site/\n' });
+  const plan = await f.cloud.preview(config, 'restore');
+  assert.ok(plan.changes.some(change => change.path === 'themes/remote/layout.ejs'));
+  assert.ok(plan.changes.some(change => change.path === '_config.theme.yml'));
+  assert.ok(plan.changes.some(change => change.path === 'public/handwritten.txt'));
+  assert.equal(plan.changes.some(change => change.path === 'output/site/index.html'), false);
+  await f.cloud.apply(config, plan.id);
+  assert.equal(await f.read(f.base, 'themes/remote/layout.ejs'), '<main>Tracked theme</main>');
+  assert.equal(await f.read(f.base, '_config.theme.yml'), 'color: blue\n');
+  assert.equal(await f.read(f.base, 'public/handwritten.txt'), 'Source asset');
+  await assert.rejects(f.read(f.base, 'output/site/index.html'), { code: 'ENOENT' });
+});
