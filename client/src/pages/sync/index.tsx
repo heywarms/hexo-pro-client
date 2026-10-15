@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Badge, Button, Card, Checkbox, Collapse, Empty, Form, Input, Modal, Radio, Select, Space, Spin, Table, Tag, Typography, theme } from 'antd'
 import { CloudSyncOutlined, CloudUploadOutlined, DownloadOutlined, FolderOutlined, GithubOutlined, LinkOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -12,6 +12,9 @@ type Config = { repository: string; branch: string; githubToken: string; commitM
 type Change = { path: string; direction: 'upload' | 'download' | 'merge' | 'conflict'; localExists: boolean; remoteExists: boolean }
 type SyncMode = 'sync' | 'restore'
 type Preview = { id: string; mode?: SyncMode; firstSync: boolean; repository: string; branch: string; localCount: number; remoteCount: number; uploadCount: number; downloadCount: number; conflictCount: number; changes: Change[] }
+type Review = { preview: Preview | null; resolutions: Record<string, string>; onlyConflicts: boolean; page: number }
+const emptyReview = (): Review => ({ preview: null, resolutions: {}, onlyConflicts: false, page: 1 })
+const emptyReviews = (): Record<SyncMode, Review> => ({ sync: emptyReview(), restore: emptyReview() })
 type Status = { isSyncing?: boolean; lastSyncTime?: string; error?: string; stage?: string }
 const errorText = (error: any) => error?.response?.data?.msg || error?.response?.data?.message || error?.message || '操作失败，请稍后重试'
 
@@ -28,11 +31,15 @@ export default function SyncPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [connected, setConnected] = useState(false)
-  const [preview, setPreview] = useState<Preview | null>(null)
-  const [resolutions, setResolutions] = useState<Record<string, string>>({})
   const [mode, setMode] = useState<SyncMode>('sync')
-  const [onlyConflicts, setOnlyConflicts] = useState(false)
+  const [reviews, setReviews] = useState(emptyReviews)
+  const { preview, resolutions, onlyConflicts, page } = reviews[mode]
+  const activePreviewId = useRef(preview?.id)
+  activePreviewId.current = preview?.id
   const [diff, setDiff] = useState<{ path: string; local: string; remote: string } | null>(null)
+  const updateReview = (update: Partial<Review>, targetMode = mode) => {
+    setReviews(current => ({ ...current, [targetMode]: { ...current[targetMode], ...update } }))
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -63,13 +70,13 @@ export default function SyncPage() {
   }
 
   const check = async (withPreview: boolean, nextMode = mode) => {
-    setBusy(withPreview ? 'preview' : 'check'); setError(''); setNotice(''); setPreview(null); setResolutions({}); setOnlyConflicts(false); setMode(nextMode)
+    setBusy(withPreview ? 'preview' : 'check'); setError(''); setNotice(''); setDiff(null); setMode(nextMode)
     try {
       await save()
       const response = await service.post(`/hexopro/api/sync/${withPreview ? 'preview' : 'check'}`, { mode: nextMode })
       if (withPreview && nextMode === 'restore' && response.data.mode !== 'restore') throw new Error('当前服务尚不支持从 GitHub 恢复，请先更新 Hexo Pro。')
       setConnected(true)
-      if (withPreview) setPreview(response.data)
+      if (withPreview) updateReview({ ...emptyReview(), preview: response.data }, nextMode)
       else setNotice('已连接 GitHub，仓库和分支可以访问。')
     } catch (err: any) {
       setConnected(false)
@@ -78,7 +85,7 @@ export default function SyncPage() {
   }
 
   const importDeploy = async () => {
-    setBusy('import'); setError(''); setPreview(null); setConnected(false)
+    setBusy('import'); setError(''); setReviews(emptyReviews()); setDiff(null); setConnected(false)
     try {
       const response = await service.post('/hexopro/api/sync/import-deploy')
       setConfig(response.data); form.setFieldsValue(response.data)
@@ -88,25 +95,29 @@ export default function SyncPage() {
 
   const apply = async () => {
     if (!preview) return
-    setBusy('apply'); setError(''); setNotice('')
+    setBusy('apply'); setError(''); setNotice(''); setDiff(null)
     try {
       const result = await service.post('/hexopro/api/sync/apply', { id: preview.id, resolutions })
       setStatus({ lastSyncTime: result.data.lastSyncTime })
       setNotice(`${preview.mode === 'restore' ? '恢复完成' : '同步完成'}：已上传 ${result.data.uploaded} 个文件，已更新本机 ${result.data.downloaded} 个文件。${result.data.refreshWarning || ''}${result.data.backupDir ? ` 本机原文件备份：${result.data.backupDir}` : ''}`)
-      setPreview(null); setResolutions({})
+      setReviews(emptyReviews())
       setMode('sync')
-    } catch (err) { setError(errorText(err)); setPreview(null) } finally { setBusy('') }
+    } catch (err) { setError(errorText(err)); setReviews(emptyReviews()) } finally { setBusy('') }
   }
 
   const disabled = loading || loadError || Boolean(busy) || Boolean(status.isSyncing)
   const unresolved = preview?.changes.filter(change => change.direction === 'conflict' && !resolutions[change.path]).length || 0
   const countDirection = (direction: string) => preview?.changes.filter(change => change.direction === direction || change.direction === 'merge' || (change.direction === 'conflict' && resolutions[change.path] === direction)).length || 0
   const resolveAll = (direction: 'upload' | 'download') => {
-    setResolutions(Object.fromEntries((preview?.changes || []).filter(change => change.direction === 'conflict').map(change => [change.path, direction])))
+    updateReview({ resolutions: Object.fromEntries((preview?.changes || []).filter(change => change.direction === 'conflict').map(change => [change.path, direction])) })
   }
   const showDiff = async (file: string) => {
-    try { const result = await service.post('/hexopro/api/sync/diff', { id: preview?.id, path: file }); setDiff(result.data) }
-    catch (err) { setError(errorText(err)) }
+    const id = preview?.id
+    if (!id) return
+    try {
+      const result = await service.post('/hexopro/api/sync/diff', { id, path: file })
+      if (activePreviewId.current === id) setDiff(result.data)
+    } catch (err) { if (activePreviewId.current === id) setError(errorText(err)) }
   }
   const actionLabel = (change: Change) => {
     const direction = change.direction === 'conflict' ? resolutions[change.path] : change.direction
@@ -123,7 +134,7 @@ export default function SyncPage() {
         <Card title={<Space><GithubOutlined aria-hidden />GitHub 连接</Space>} className={styles.connection}>
           <div className={styles.project}><FolderOutlined aria-hidden /><div><Typography.Text type="secondary">当前博客</Typography.Text><div className={styles.path}>{config.projectPath || '正在读取…'}</div></div></div>
           <Form form={form} layout="vertical" initialValues={{ branch: 'main' }} disabled={disabled}
-            onValuesChange={() => { setPreview(null); setConnected(false); setNotice('') }}>
+            onValuesChange={() => { setReviews(emptyReviews()); setDiff(null); setConnected(false); setNotice('') }}>
             <Form.Item name="repository" label="源码仓库" rules={[{ required: true, message: '请输入 GitHub 仓库' }]} extra="与手机使用同一个仓库，里面应包含 Markdown 源文件。">
               <Input prefix={<GithubOutlined aria-hidden />} placeholder="用户名 / 仓库名" autoComplete="off" />
             </Form.Item>
@@ -148,7 +159,7 @@ export default function SyncPage() {
             <div className={styles.modePicker}>
               <Typography.Text strong id="sync-mode-label">这次要做什么</Typography.Text>
               <Radio.Group aria-labelledby="sync-mode-label" value={mode} disabled={disabled} onChange={event => {
-                setMode(event.target.value); setPreview(null); setResolutions({}); setOnlyConflicts(false); setNotice(''); setError('')
+                setMode(event.target.value); setDiff(null); setNotice(''); setError('')
               }}>
                 <Radio.Button value="sync">双向同步</Radio.Button>
                 <Radio.Button value="restore">从 GitHub 恢复（新电脑）</Radio.Button>
@@ -186,24 +197,30 @@ export default function SyncPage() {
               <Space wrap>
                 <Button onClick={() => resolveAll('download')} disabled={disabled}>全部保留 GitHub 版本</Button>
                 <Button onClick={() => resolveAll('upload')} disabled={disabled}>全部保留本机版本</Button>
-                <Button onClick={() => setResolutions({})} disabled={disabled}>清除选择</Button>
+                <Button onClick={() => updateReview({ resolutions: {} })} disabled={disabled}>清除选择</Button>
               </Space>
-              <Checkbox checked={onlyConflicts} disabled={disabled} onChange={event => setOnlyConflicts(event.target.checked)}>只看冲突文件</Checkbox>
+              <Checkbox checked={onlyConflicts} disabled={disabled} onChange={event => updateReview({ onlyConflicts: event.target.checked, page: 1 })}>只看冲突文件</Checkbox>
             </div>}
-            <Table<Change> key={`${preview.id}-${onlyConflicts}`} rowKey="path" size="small" scroll={{ x: preview.conflictCount ? 560 : 400 }} dataSource={onlyConflicts ? preview.changes.filter(change => change.direction === 'conflict') : preview.changes} pagination={{ pageSize: 8, showSizeChanger: false, hideOnSinglePage: true }}
+            <Table<Change> key={`${preview.id}-${onlyConflicts}`} rowKey="path" size="small" scroll={{ x: preview.conflictCount ? 560 : 400 }} dataSource={onlyConflicts ? preview.changes.filter(change => change.direction === 'conflict') : preview.changes} pagination={{ current: page, onChange: page => updateReview({ page }), pageSize: 8, showSizeChanger: false, hideOnSinglePage: true }}
               locale={{ emptyText: '两边文件一致，可以确认同步记录。' }} columns={[
                 { title: '文件', dataIndex: 'path', render: (name: string) => <Button type="link" className={styles.fileName} onClick={() => showDiff(name)} disabled={disabled}>{name}</Button> },
                 { title: '变更', width: 130, render: (_, change) => actionLabel(change) },
                 ...(preview.conflictCount ? [{ title: '保留版本', width: 140, render: (_: unknown, change: Change) => change.direction === 'conflict' ?
                   <Select aria-label={`保留 ${change.path} 的版本`} placeholder="请选择" value={resolutions[change.path]} disabled={disabled} style={{ width: '100%' }}
-                    onChange={value => setResolutions(current => ({ ...current, [change.path]: value }))}
+                    onChange={value => updateReview({ resolutions: { ...resolutions, [change.path]: value } })}
                     options={[{ value: 'upload', label: change.localExists ? '本机版本' : '本机的删除' }, { value: 'download', label: change.remoteExists ? 'GitHub 版本' : 'GitHub 的删除' }]} /> : null }] : []),
               ]} />
             <div className={styles.reviewActions}>
               <Typography.Text type="secondary">{unresolved ? `还有 ${unresolved} 个文件需要选择版本` : '已列出全部变更；下载覆盖前会保留本机备份。'}</Typography.Text>
               <Button type="primary" onClick={apply} disabled={disabled || unresolved > 0} loading={busy === 'apply'}>{preview.mode === 'restore' ? '确认恢复到本机' : preview.changes.length ? '同步这些变更' : '确认同步'}</Button>
             </div>
-          </Card> : <Card className={styles.emptyCard}><Empty image={<CloudSyncOutlined className={styles.emptyIcon} />} description={<div><Typography.Title level={5}>先检查，再同步</Typography.Title><Typography.Paragraph type="secondary">检查变更后，这里会列出需要上传和下载的文件。<br />网站发布仍在「部署网站」中完成。</Typography.Paragraph></div>} /></Card>}
+          </Card> : <Card className={styles.emptyCard}><Empty image={<CloudSyncOutlined className={styles.emptyIcon} />} description={<div>
+            <Typography.Title level={5}>{mode === 'restore' ? '先预览，再恢复' : '先检查，再同步'}</Typography.Title>
+            <Typography.Paragraph type="secondary">
+              {reviews[mode === 'sync' ? 'restore' : 'sync'].preview && <>{mode === 'restore' ? '双向同步' : 'GitHub 恢复'}的检查结果和版本选择已保留，切回即可继续。<br /></>}
+              {mode === 'restore' ? '点击「预览恢复」，查看按 GitHub 版本更新本机的文件。' : '检查变更后，这里会列出需要上传和下载的文件。'}<br />网站发布仍在「部署网站」中完成。
+            </Typography.Paragraph>
+          </div>} /></Card>}
         </div>
       </div>
     </Spin>

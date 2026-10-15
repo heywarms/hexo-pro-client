@@ -312,3 +312,80 @@ test('restore includes tracked files even if remote ignore rules hide them, whil
   assert.equal(await f.read(f.base, 'public/handwritten.txt'), 'Source asset');
   await assert.rejects(f.read(f.base, 'output/site/index.html'), { code: 'ENOENT' });
 });
+
+test('sync and restore previews remain reviewable and either original plan can be applied after switching modes', async t => {
+  for (const modes of [['sync', 'restore'], ['restore', 'sync']]) {
+    const f = await fixture(t);
+    await f.phoneUpdate({
+      'package.json': JSON.stringify({ dependencies: { hexo: '^8.0.0' } }),
+      'source/_posts/a.md': 'Remote article'
+    });
+    await f.write(f.base, 'source/_posts/a.md', 'Local article');
+    const first = await f.cloud.preview(config, modes[0]);
+    const second = await f.cloud.preview(config, modes[1]);
+    for (const plan of [first, second]) {
+      assert.deepEqual(f.cloud.diff(plan.id, 'source/_posts/a.md'), {
+        path: 'source/_posts/a.md', local: 'Local article', remote: 'Remote article'
+      });
+    }
+    const result = await f.apply(first);
+    assert.equal(result.mode, modes[0]);
+    assert.equal(await f.read(f.base, 'source/_posts/a.md'), modes[0] === 'restore' ? 'Remote article' : 'Local article');
+    if (modes[0] === 'restore') assert.equal(f.calls.some(args => args[0] === 'push'), false);
+    for (const plan of [first, second]) {
+      assert.throws(() => f.cloud.diff(plan.id, 'source/_posts/a.md'), /预览已过期/);
+      await assert.rejects(f.apply(plan), /预览已过期/);
+    }
+    await f.assertOriginalGit();
+  }
+});
+
+test('refreshing one mode replaces only that preview and changing credentials invalidates both', async t => {
+  const f = await fixture(t);
+  await f.phoneUpdate({
+    'package.json': JSON.stringify({ dependencies: { hexo: '^8.0.0' } }),
+    'source/_posts/a.md': 'Remote article'
+  });
+  const original = await f.preview();
+  const restore = await f.cloud.preview(config, 'restore');
+  const refreshed = await f.preview();
+  assert.throws(() => f.cloud.diff(original.id, 'source/_posts/a.md'), /预览已过期/);
+  for (const plan of [restore, refreshed]) assert.equal(f.cloud.diff(plan.id, 'source/_posts/a.md').remote, 'Remote article');
+  const [connection] = await fs.readdir(path.join(f.base, '.hexo-pro/cloud-sync'));
+  const previews = async () => (await fs.readdir(path.join(f.base, '.hexo-pro/cloud-sync', connection))).filter(name => name.startsWith('preview-'));
+  assert.equal((await previews()).length, 2, 'retain at most one snapshot per mode');
+  const newConfig = { ...config, githubToken: 'replacement-fixture-token' };
+  const replacement = await f.cloud.preview(newConfig, 'sync');
+  for (const plan of [restore, refreshed]) {
+    assert.throws(() => f.cloud.diff(plan.id, 'source/_posts/a.md'), /预览已过期/);
+    await assert.rejects(f.cloud.apply(newConfig, plan.id), /预览已过期/);
+  }
+  assert.equal((await previews()).length, 1);
+  await f.cloud.apply(newConfig, replacement.id, { 'source/_posts/a.md': 'download' });
+  assert.equal((await previews()).length, 0, 'applied previews release their snapshots');
+});
+
+test('a failed restore preview keeps an existing sync review usable', async t => {
+  const f = await fixture(t);
+  const plan = await f.preview();
+  await assert.rejects(f.cloud.preview(config, 'restore'), /源码仓库/);
+  assert.match(f.cloud.diff(plan.id, 'themes/custom/layout.ejs').local, /Theme/);
+  await f.apply(plan);
+  assert.deepEqual((await f.preview()).changes, []);
+});
+
+test('retained previews still reject local or remote changes before applying', async t => {
+  for (const changedSide of ['local', 'remote']) {
+    const f = await fixture(t);
+    await f.phoneUpdate({ 'package.json': JSON.stringify({ dependencies: { hexo: '^8.0.0' } }) });
+    const sync = await f.preview();
+    const restore = await f.cloud.preview(config, 'restore');
+    if (changedSide === 'local') await f.write(f.base, 'source/_posts/a.md', 'New local edit');
+    else await f.phoneUpdate({ 'source/_posts/a.md': 'New remote edit' });
+    for (const plan of [sync, restore]) {
+      await assert.rejects(f.apply(plan), changedSide === 'local' ? /本机文件发生了变化/ : /刚更新了 GitHub/);
+    }
+    assert.equal(f.calls.some(args => args[0] === 'push'), false);
+    assert.match(await f.read(f.base, 'source/_posts/a.md'), changedSide === 'local' ? /New local edit/ : /Original body/);
+  }
+});
