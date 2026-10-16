@@ -4,8 +4,8 @@
     justify-content: space-between;
     gap: 6px 20px;
     flex-wrap: wrap;
-    min-height: 60px;
-    padding: 10px 20px;
+    min-height: 52px;
+    padding: 8px 20px;
     flex-shrink: 0;
     min-width: 0;
     container-type: inline-size;
@@ -15,7 +15,7 @@
     border-bottom: 1px solid var(--editor-line);
     button { height: 34px; border-radius: 7px; }
     :global(.ant-btn-text) { color: var(--editor-muted); }
-    button:focus-visible { outline: 2px solid #4d73e9; outline-offset: 2px; }
+    button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 }
 .documentTrail { display: flex; align-items: center; gap: 14px; min-width: 0; flex-shrink: 0; }
 .breadcrumb { display: flex; align-items: center; gap: 9px; min-width: 0; font-size: 13px; color: var(--editor-muted); white-space: nowrap; }
@@ -27,8 +27,8 @@
     gap: 6px;
     flex-shrink: 0;
     font-size: 11px;
-    color: #347657;
-    background: #eff8f2;
+    color: var(--ui-success);
+    background: var(--ui-success-soft);
     padding: 3px 8px;
     border-radius: 5px;
     > span { width: 5px; height: 5px; background: currentColor; border-radius: 50%; }
@@ -37,12 +37,12 @@
 .actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; margin-left: auto; }
 .aiButton svg { width: 16px; height: 16px; path { fill: currentColor; } }
 .actionLabel { font-size: 13px; }
-.propertyToggle[aria-expanded='true'] { color: #315fc4 !important; background: #edf3ff; }
-:global([data-theme='dark']) .propertyToggle[aria-expanded='true'] { color: #91b3ff !important; background: #263754; }
+.propertyToggle[aria-expanded='true'] { color: var(--ui-accent) !important; background: var(--ui-accent-soft); }
+:global([data-theme='dark']) .propertyToggle[aria-expanded='true'] { color: var(--ui-accent) !important; background: var(--ui-accent-soft); }
 .actionDivider { height: 18px; width: 1px; background: var(--editor-line); margin: 0 8px; }
 .publishButton { box-shadow: none; font-size: 13px; }
 .unpublishButton { background: var(--editor-paper); color: var(--editor-text); border-color: var(--editor-line-strong); box-shadow: none; font-size: 13px; }
-:global([data-theme='dark']) .documentState:not([data-draft='true']) { background: #21362c; color: #86caa6; }
+:global([data-theme='dark']) .documentState:not([data-draft='true']) { background: var(--ui-success-soft); color: var(--ui-success); }
 @media (max-width: 1200px) {
     .breadcrumbTitle { max-width: 160px; }
     .documentTrail { gap: 8px; }
@@ -59,3 +59,5 @@
     .actions { gap: 2px; }
     .actionDivider { margin-inline: 4px; }
 }
+
+@media (pointer: coarse) { .header button { min-width: 44px; min-height: 44px; } }

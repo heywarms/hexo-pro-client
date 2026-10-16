@@ -14,6 +14,7 @@ import BlockEditor from '@/components/BlogEditor/BlockEditor'
 import SourceEditor from '@/components/BlogEditor/SourceEditor'
 import DocumentTitle from '@/components/BlogEditor/DocumentTitle'
 import { getMarkdownIssue } from '@/components/BlogEditor/markdownSafety.mjs'
+import { createBlockSnapshot } from '@/components/BlogEditor/blockSnapshot.mjs'
 import { remarkSizedImages } from '@/components/BlogEditor/imageMarkdown.mjs'
 import { WorkspaceStore } from './workspaceStore.mjs'
 import { isDirty, splitDocument, titleForDocument } from './documentModel.mjs'
@@ -44,17 +45,18 @@ function DocumentEditor({ doc, saveStatus, onRun, onBack, onSettings, onRaw, onE
     const body = splitDocument(doc.raw).body
     const [mode, setMode] = useState('blocks')
     const [view, setView] = useState('edit')
-    const [fallback, setFallback] = useState('')
+    const [fallback, setFallback] = useState({ value: '', reason: '' })
+    const [blockSnapshot] = useState(createBlockSnapshot)
     const blockRef = useRef<any>(null)
     const imageInput = useRef<HTMLInputElement>(null)
     const imageBlock = useRef<string>(null)
-    const issue = getMarkdownIssue(body) || fallback
+    const issue = blockSnapshot.matches(body) ? '' : getMarkdownIssue(body) || (fallback.value === body ? fallback.reason : '')
     const sourceMode = !!issue || mode === 'source'
     const title = titleForDocument(doc)
     const count = Array.from(body.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[\s#*`>]/g, '')).length
     const upload = useCallback((file: File) => images.upload(file), [])
     const resolve = useCallback((url: string) => images.resolve(url, doc.source), [doc.source])
-    const fallbackHandler = useCallback((reason: string) => { setFallback(reason); setMode('source') }, [])
+    const fallbackHandler = useCallback((reason: string) => { setFallback({ value: body, reason }); setMode('source') }, [body])
     const blockAction = (action: () => void) => { if (blockRef.current) { blockRef.current.focus(); action() } }
     const insertTools = <div className="insert-tools" role="group" aria-label="插入内容与图片">
         <Button type="text" icon={<PlusOutlined />} aria-label="插入内容" onPointerDown={e => e.preventDefault()}
@@ -97,6 +99,7 @@ function DocumentEditor({ doc, saveStatus, onRun, onBack, onSettings, onRaw, onE
                         onChange={value => onRun(() => store.editBody(doc.documentId, value))} onReady={noOp} /></div>
                         : <BlockEditor value={body} onChange={value => onRun(() => store.editBody(doc.documentId, value))}
                             onReady={noOp} onFallback={fallbackHandler} uploadFile={upload} resolveFileUrl={resolve}
+                            blockSnapshot={blockSnapshot}
                             mobileToolbarActions={insertTools}
                             onEditorReady={editor => { blockRef.current = editor }} />}
                 </div>
@@ -128,7 +131,7 @@ function DocumentEditor({ doc, saveStatus, onRun, onBack, onSettings, onRaw, onE
                 }} />
         </div>
         {view === 'preview' && <div className="document-scroll preview-scroll">
-            <article className="prose"><h1>{title}</h1><p className="preview-caption">正文预览 · 发布样式由博客主题决定</p>
+            <article className="prose"><h1 className="preview-document-title">{title}</h1><p className="preview-caption">正文预览 · 发布样式由博客主题决定</p>
                 <DocumentSourceContext.Provider value={doc.source}><ReactMarkdown remarkPlugins={[remarkGfm, remarkSizedImages]} skipHtml components={{ img: PreviewImage,
                     a: props => <a {...props} target="_blank" rel="noopener noreferrer" /> }}>{body}</ReactMarkdown></DocumentSourceContext.Provider>
             </article>
@@ -328,7 +331,8 @@ export default function MobileApp() {
     }
     return <GlobalContext.Provider value={{ theme: dark ? 'dark' : 'light', lang: 'zh-CN' }}>
         <ConfigProvider theme={{ algorithm: dark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
-            token: { colorPrimary: '#4169dc', borderRadius: 12, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', controlHeight: 48 } }}>
+            components: { Button: { primaryColor: dark ? '#171a20' : '#ffffff' } },
+            token: { colorPrimary: dark ? '#8daaff' : '#3763cc', borderRadius: 8, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', controlHeight: 48 } }}>
             <MantineProvider forceColorScheme={dark ? 'dark' : 'light'}><AntApp>
                 <main className="mobile-app" data-theme={dark ? 'dark' : 'light'}>
                     {!state ? <div className="loading-screen"><FileTextOutlined /><h1>Hexo Pro</h1>
@@ -378,6 +382,7 @@ export default function MobileApp() {
                                             <Button type="primary" icon={<EditOutlined aria-hidden="true" />} aria-label={tab === 'pages' ? '新建页面' : '新建文章'}
                                                 onClick={newDocument}>{tab === 'pages' ? '新建页面' : '新建文章'}</Button></div>
                                         <p>{workspace.config ? `${pending} 篇待同步 · ${workspace.config.branch}` : '灵感先留下，联网再同步。'}</p></div>
+                                    {!workspace.config && <button className="connect-card" onClick={() => setTab('settings')}><GithubOutlined aria-hidden="true" /><span><strong>让手机和电脑接着写</strong><small>连接 GitHub，随时同步你的文章</small></span><span aria-hidden="true">→</span></button>}
                                     <div className="list-search" role="search"><Input prefix={<SearchOutlined aria-hidden="true" />}
                                         placeholder={tab === 'pages' ? '搜索页面' : '搜索文章'} aria-label={tab === 'pages' ? '搜索页面' : '搜索文章'}
                                         enterKeyHint="search" allowClear value={search} onChange={event => setSearch(event.target.value)} /></div>
@@ -404,7 +409,6 @@ export default function MobileApp() {
                                     {!documents.length && <div className="empty-state"><EditOutlined aria-hidden="true" /><h2>{emptyTitle}</h2><p>{emptyHint}</p>
                                         {search ? <Button onClick={() => setSearch('')}>清空搜索</Button> : filter === 'pending' ? <Button onClick={() => setFilter('all')}>关闭待同步筛选</Button>
                                             : <Button type="primary" onClick={newDocument}>{tab === 'pages' ? '新建页面' : '写一篇草稿'}</Button>}</div>}
-                                    {!workspace.config && <button className="connect-card" onClick={() => setTab('settings')}><GithubOutlined aria-hidden="true" /><span><strong>让手机和电脑接着写</strong><small>连接 GitHub，随时同步你的文章</small></span><span aria-hidden="true">→</span></button>}
                                 </>}
                             </div>
                             <nav className="bottom-nav" aria-label="主要导航">{[

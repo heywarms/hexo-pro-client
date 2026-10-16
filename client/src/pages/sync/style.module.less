@@ -4,7 +4,7 @@
 .path { word-break: break-all; font-size: 12px; margin-top: 4px; line-height: 1.6; color: var(--manage-muted); }
 .content { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; > * { min-width: 0; } > div:empty { display: none; } :global(.ant-alert-message) { overflow-wrap: anywhere; } }
 .summary { border: 0; background: transparent; :global(.ant-card-body) { padding: 0; } }
-.statusRow { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 4px 0 20px; h4 { margin: 0 0 12px; font-size: 20px; } }
+.statusRow { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 4px 0 20px; h4 { margin: 0 0 12px; font-size: 18px; } }
 .workflow { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border-top: 1px solid var(--manage-line); border-bottom: 1px solid var(--manage-line); padding: 16px 0; gap: 12px; > span { display: flex; align-items: center; gap: 8px; color: var(--manage-muted); font-size: 13px; } b { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; font-size: 11px; background: var(--manage-surface); font-weight: 600; } [data-complete='true'] { color: var(--manage-accent); b { background: var(--manage-accent-soft); } } }
 .scope { display: flex; align-items: flex-start; gap: 8px; margin: 18px 0 12px; line-height: 1.8; font-size: 13px; color: var(--manage-muted); > :global(.anticon) { margin-top: 5px; } }
 .formActions { margin-top: 14px; }
@@ -12,9 +12,9 @@
 .bulkActions { display: grid; gap: 12px; margin-bottom: 16px; padding: 16px; border-radius: 8px; background: var(--manage-surface); }
 .restoreNotice { margin-bottom: 16px; }
 .changes { border-color: var(--manage-line); border-radius: 10px; :global(.ant-card-head) { padding: 0 20px; border-color: var(--manage-line); } :global(.ant-card-head-wrapper) { flex-wrap: wrap; padding: 12px 0; gap: 8px; } :global(.ant-card-extra) { font-size: 12px; overflow-wrap: anywhere; } :global(.ant-card-body) { padding: 20px; } :global(.ant-table) { background: var(--manage-paper); } }
-.emptyCard { border: 1px dashed var(--manage-line); background: var(--manage-surface); border-radius: 10px; min-height: 300px; display: grid; align-items: center; :global(.ant-empty-description) { p { font-size: 13px; line-height: 1.8; margin-bottom: 0; } } }
-.emptyIcon { font-size: 42px; padding: 20px; border-radius: 20px; color: var(--manage-accent); background: var(--manage-accent-soft); }
-.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 14px; background: var(--manage-surface); border-radius: 8px; } strong { font-size: 26px; line-height: 1.2; font-variant-numeric: tabular-nums; } span { font-size: 12px; color: var(--manage-muted); } }
+.emptyCard { border: 1px dashed var(--manage-line); background: var(--manage-surface); border-radius: 10px; min-height: 240px; display: grid; align-items: center; :global(.ant-empty-description) { p { font-size: 13px; line-height: 1.8; margin-bottom: 0; } } }
+.emptyIcon { font-size: 28px; padding: 12px; border-radius: 10px; color: var(--manage-accent); background: var(--manage-accent-soft); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 14px; background: var(--manage-surface); border-radius: 8px; } strong { font-size: 22px; line-height: 1.2; font-variant-numeric: tabular-nums; } span { font-size: 12px; color: var(--manage-muted); } }
 .fileName { overflow-wrap: anywhere; white-space: normal; text-align: left; height: auto; padding: 0; max-width: 100%; }
 .diff { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; section { min-width: 0; } pre { padding: 16px; border-radius: 8px; max-height: 55vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; } }
 .reviewActions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; > :global(.ant-typography) { font-size: 12px; } }

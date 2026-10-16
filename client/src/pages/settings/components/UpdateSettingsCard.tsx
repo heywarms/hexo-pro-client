@@ -1,22 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Divider, Space, Tag, Typography, message } from 'antd'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Button, Card, Divider, Progress, Space, Switch, Tag, Typography, message } from 'antd'
 import { CloudDownloadOutlined, InfoCircleOutlined, ReloadOutlined, RocketOutlined } from '@ant-design/icons'
 import useLocale from '../../../hooks/useLocale'
+import { DESKTOP_RELEASE_URL, DesktopUpdaterState, getDesktopUpdater, subscribeToUpdater } from '../../../utils/desktopUpdater'
+import updateLocale from '../locale/update'
 
 const { Text } = Typography
 
-type UpdaterState = {
-  status?: string
-  currentVersion?: string
-  availableVersion?: string | null
-  progress?: number
-  error?: string | null
-  lastCheckedAt?: string | null
-}
+type ActionType = 'check' | 'download' | 'install' | 'preference' | null
 
-type ActionType = 'check' | 'download' | 'install' | null
-
-const DEFAULT_UPDATER_STATE: UpdaterState = {
+const DEFAULT_UPDATER_STATE: DesktopUpdaterState = {
   status: 'idle',
   currentVersion: '',
   availableVersion: null,
@@ -24,8 +17,6 @@ const DEFAULT_UPDATER_STATE: UpdaterState = {
   error: null,
   lastCheckedAt: null,
 }
-
-const RELEASE_URL = 'https://github.com/wuzheng228/hexo-pro/releases'
 
 const getStatusText = (status: string, t: Record<string, string>) => {
   const statusMap: Record<string, string> = {
@@ -63,48 +54,33 @@ type UpdateSettingsCardProps = {
 
 const UpdateSettingsCard: React.FC<UpdateSettingsCardProps> = ({ checkTrigger = 0 }) => {
   const t = useLocale()
-  const [updaterState, setUpdaterState] = useState<UpdaterState>(DEFAULT_UPDATER_STATE)
+  const ui = useLocale(updateLocale)
+  const [updaterState, setUpdaterState] = useState<DesktopUpdaterState>(DEFAULT_UPDATER_STATE)
   const [actionLoading, setActionLoading] = useState<ActionType>(null)
+  const [ready, setReady] = useState(false)
+  const lastCheckTrigger = useRef(0)
 
-  const updaterApi = useMemo(() => {
-    const electronAPI = (window as any).electronAPI
-    return electronAPI?.updater || null
-  }, [])
+  const updaterApi = useMemo(getDesktopUpdater, [])
 
   const currentVersion = updaterState.currentVersion || ((window as any).electronAPI?.getAppVersion?.() ?? '-')
   const status = updaterState.status || 'idle'
   const statusColor = getStatusColor(status)
   const statusText = getStatusText(status, t)
-  const progressText =
-    status === 'downloading' ? `${t['settings.update.progress'] || '下载进度'}: ${Number(updaterState.progress || 0).toFixed(1)}%` : null
+  const busy = Boolean(actionLoading) || ['checking', 'downloading', 'installing'].includes(status)
+  const supported = ready && updaterState.supported !== false && status !== 'disabled'
 
   useEffect(() => {
     if (!updaterApi) {
       return
     }
 
-    updaterApi
-      .getState()
-      .then((state: UpdaterState) => {
-        if (state && typeof state === 'object') {
-          setUpdaterState((prev) => ({ ...prev, ...state }))
-        }
-      })
-      .catch((error: Error) => {
-        setUpdaterState((prev) => ({ ...prev, status: 'error', error: error?.message || String(error) }))
-      })
-
-    const unsubscribe = updaterApi.onStatusChange?.((state: UpdaterState) => {
-      if (state && typeof state === 'object') {
-        setUpdaterState((prev) => ({ ...prev, ...state }))
-      }
+    return subscribeToUpdater(updaterApi, state => {
+      setUpdaterState(state)
+      setReady(true)
+    }, error => {
+      setUpdaterState(prev => ({ ...prev, status: 'error', error: error.message }))
+      setReady(true)
     })
-
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe()
-      }
-    }
   }, [updaterApi])
 
   const handleCheck = useCallback(async () => {
@@ -144,19 +120,31 @@ const UpdateSettingsCard: React.FC<UpdateSettingsCardProps> = ({ checkTrigger = 
   }, [t, updaterApi])
 
   useEffect(() => {
-    if (!checkTrigger || !updaterApi) {
+    if (!checkTrigger || !updaterApi || checkTrigger === lastCheckTrigger.current) {
       return
     }
+    lastCheckTrigger.current = checkTrigger
     handleCheck()
   }, [checkTrigger, handleCheck, updaterApi])
 
-  const canDownload = status === 'update-available' || status === 'downloading'
-  const canInstall = status === 'downloaded' || status === 'installing'
+  const canDownload = supported && !busy && (status === 'update-available' || (status === 'error' && updaterState.errorStage === 'download'))
+  const canInstall = supported && !busy && status === 'downloaded'
+
+  const handleAutoDownload = async (enabled: boolean) => {
+    try {
+      setActionLoading('preference')
+      await updaterApi?.setAutoDownload?.(enabled)
+    } catch {
+      message.error(ui.saveFailed)
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   return (
     <Card>
       <Divider orientation="left">
-        <InfoCircleOutlined /> {t['settings.helpTitle'] || '帮助与更新'}
+        <InfoCircleOutlined aria-hidden="true" /> {t['settings.helpTitle'] || '帮助与更新'}
       </Divider>
 
       {!updaterApi ? (
@@ -167,6 +155,22 @@ const UpdateSettingsCard: React.FC<UpdateSettingsCardProps> = ({ checkTrigger = 
         />
       ) : (
         <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          {updaterApi.setAutoDownload && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, justifyContent: 'space-between' }}>
+              <div>
+                <Text strong id="auto-download-label">{ui.autoDownload}</Text>
+                <div><Text type="secondary">{ui.autoDownloadHint}</Text></div>
+              </div>
+              <Switch
+                aria-labelledby="auto-download-label"
+                style={{ flexShrink: 0, marginTop: 2 }}
+                checked={updaterState.autoDownload === true}
+                disabled={!supported || status === 'installing'}
+                loading={actionLoading === 'preference'}
+                onChange={handleAutoDownload}
+              />
+            </div>
+          )}
           <Alert
             showIcon
             type={status === 'error' ? 'error' : status === 'downloaded' || status === 'up-to-date' ? 'success' : 'info'}
@@ -178,45 +182,38 @@ const UpdateSettingsCard: React.FC<UpdateSettingsCardProps> = ({ checkTrigger = 
             }
             description={
               <>
-                {progressText ? <div>{progressText}</div> : null}
-                {updaterState.error ? <div>{(t['settings.update.errorPrefix'] || '错误') + `: ${updaterState.error}`}</div> : null}
+                {status === 'disabled' && updaterState.disabledReason ? <div>{ui[updaterState.disabledReason]}</div> : null}
+                {status === 'downloaded' ? <div>{ui.ready}</div> : null}
+                {updaterState.error ? <div style={{ overflowWrap: 'anywhere' }}>{(t['settings.update.errorPrefix'] || '错误') + `: ${updaterState.error}`}</div> : null}
               </>
             }
           />
 
+          {status === 'downloading' && (
+            <Progress percent={Number(updaterState.progress.toFixed(1))} aria-label={t['settings.update.progress']} />
+          )}
+
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <Button icon={<ReloadOutlined />} loading={actionLoading === 'check'} onClick={handleCheck}>
+            <Button icon={<ReloadOutlined aria-hidden="true" />} disabled={!supported || busy || status === 'downloaded'} loading={actionLoading === 'check' || status === 'checking'} onClick={handleCheck}>
               {t['settings.update.check'] || '检查更新'}
             </Button>
             <Button
-              icon={<CloudDownloadOutlined />}
+              icon={<CloudDownloadOutlined aria-hidden="true" />}
               type="primary"
               disabled={!canDownload}
               loading={actionLoading === 'download' || status === 'downloading'}
               onClick={handleDownload}
             >
-              {t['settings.update.download'] || '下载更新'}
+              {updaterState.errorStage === 'download' ? ui.retryDownload : t['settings.update.download'] || '下载更新'}
             </Button>
             <Button
-              icon={<RocketOutlined />}
+              icon={<RocketOutlined aria-hidden="true" />}
               danger
               disabled={!canInstall}
               loading={actionLoading === 'install' || status === 'installing'}
               onClick={handleInstall}
             >
               {t['settings.update.install'] || '重启安装'}
-            </Button>
-            <Button
-              onClick={() => {
-                const electronAPI = (window as any).electronAPI
-                if (electronAPI?.openExternal) {
-                  electronAPI.openExternal(RELEASE_URL)
-                  return
-                }
-                window.open(RELEASE_URL, '_blank')
-              }}
-            >
-              {t['settings.update.openRelease'] || '查看发布页'}
             </Button>
           </div>
 
@@ -229,6 +226,10 @@ const UpdateSettingsCard: React.FC<UpdateSettingsCardProps> = ({ checkTrigger = 
               <Text strong>{t['settings.update.availableVersion'] || '可用版本'}</Text>
               <Text>{updaterState.availableVersion || '-'}</Text>
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <Text strong>{ui.channel}</Text>
+              <Text>{!updaterState.channel ? '-' : updaterState.channel === 'stable' ? ui.stable : `${ui.prerelease} (${updaterState.channel})`}</Text>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <Text strong>{t['settings.update.lastCheckedAt'] || '最近检查'}</Text>
               <Text>{formatTime(updaterState.lastCheckedAt)}</Text>
@@ -236,6 +237,16 @@ const UpdateSettingsCard: React.FC<UpdateSettingsCardProps> = ({ checkTrigger = 
           </div>
         </Space>
       )}
+      <Button style={{ marginTop: 12 }} onClick={() => {
+        const electronAPI = window.electronAPI
+        if (electronAPI?.openExternal) {
+          electronAPI.openExternal(DESKTOP_RELEASE_URL).catch((error: Error) => message.error(error.message))
+        } else {
+          window.open(DESKTOP_RELEASE_URL, '_blank', 'noopener,noreferrer')
+        }
+      }}>
+        {t['settings.update.openRelease'] || '查看发布页'}
+      </Button>
     </Card>
   )
 }

@@ -8,6 +8,7 @@ import {
   buildWorkingYaml,
   extractCommentedTemplateBlocks,
   generateSchemaFromYaml,
+  getSchemaMetadataFromJson,
   getNestedValue,
   updateYamlValues,
 } from '../themeSchema'
@@ -22,7 +23,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function isStructuredValue(value: unknown): boolean {
   if (Array.isArray(value)) {
-    return value.length === 0 || value.every((item) => typeof item === 'object' && item !== null)
+    return true
   }
   return isPlainObject(value)
 }
@@ -44,270 +45,105 @@ interface StructuredValueEditorProps {
   onChange?: (value: unknown) => void
   sample?: unknown
   disabled?: boolean
+  fieldPath?: string
+  schemaJson?: SchemaJson | null
 }
 
 const StructuredValueEditor: React.FC<StructuredValueEditorProps> = ({
-  value,
-  onChange,
-  sample,
-  disabled,
+  value, onChange, sample, disabled, fieldPath = '', schemaJson,
 }) => {
   const [newKey, setNewKey] = useState('')
   const [newValue, setNewValue] = useState('')
   const currentValue = value ?? sample
-  const effectiveSample = currentValue ?? sample
+  const metadata = getSchemaMetadataFromJson(schemaJson, fieldPath)
+  const setValue = (next: unknown) => onChange?.(next)
 
-  if (Array.isArray(currentValue) || Array.isArray(effectiveSample)) {
-    const listValue = Array.isArray(currentValue) ? currentValue : []
-    const arraySample = Array.isArray(effectiveSample) ? effectiveSample : []
-    const itemSample = listValue[0] ?? arraySample[0] ?? {}
-    const getItemTitle = (item: unknown, index: number): string => {
-      if (isPlainObject(item) && typeof item.title === 'string' && item.title.trim() !== '') {
-        return item.title
-      }
-      return `Item ${index + 1}`
+  if (Array.isArray(currentValue)) {
+    const itemSample = currentValue[0] ?? (Array.isArray(sample) ? sample[0] : undefined) ?? metadata?.item_template ?? ''
+    const move = (from: number, to: number) => {
+      const next = [...currentValue]
+      next.splice(to, 0, next.splice(from, 1)[0])
+      setValue(next)
     }
-
-    return (
-      <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        {listValue.map((item, index) => (
-          <Card
-            key={index}
-            size="small"
-            title={getItemTitle(item, index)}
-            extra={(
-              <Button
-                danger
-                size="small"
-                disabled={disabled}
-                onClick={() => onChange?.(listValue.filter((_, itemIndex) => itemIndex !== index))}
-              >
-                删除
-              </Button>
-            )}
-          >
-            <StructuredValueEditor
-              value={item}
-              sample={itemSample}
-              disabled={disabled}
-              onChange={(nextItem) => {
-                const nextList = [...listValue]
-                nextList[index] = nextItem
-                onChange?.(nextList)
-              }}
-            />
-          </Card>
-        ))}
-        <Button
-          type="dashed"
-          disabled={disabled}
-          onClick={() => {
-            const nextItem = buildEmptyValueFromSample(itemSample)
-            onChange?.([...listValue, nextItem])
-          }}
-        >
-          添加项
-        </Button>
-      </Space>
-    )
-  }
-
-  if (isPlainObject(currentValue) || isPlainObject(effectiveSample)) {
-    const objectValue = isPlainObject(currentValue) ? currentValue : {}
-    const objectSample = isPlainObject(effectiveSample) ? effectiveSample : {}
-    // 只显示当前值中的键，模板(sample)中的键不再自动显示为禁用项
-    const objectKeys = Object.keys(objectValue)
-    const addObjectKey = () => {
-      const trimmedKey = newKey.trim()
-      if (!trimmedKey || objectKeys.includes(trimmedKey)) return
-      // 根据输入的值类型推断：如果是数字就用数字，布尔就用布尔，否则用字符串
-      let parsedValue: unknown = newValue.trim()
-      if (parsedValue === 'true') parsedValue = true
-      else if (parsedValue === 'false') parsedValue = false
-      else if (!Number.isNaN(Number(parsedValue)) && parsedValue !== '') parsedValue = Number(parsedValue)
-      onChange?.({
-        ...objectValue,
-        [trimmedKey]: parsedValue,
-      })
-      setNewKey('')
-      setNewValue('')
-    }
-
-    return (
-      <Space direction="vertical" size={12} style={{ width: '100%' }}>
-        {objectKeys.map((key) => {
-          const childValue = objectValue[key]
-          const childSample = objectSample[key]
-
-          if (isStructuredValue(childValue ?? childSample)) {
-            return (
-              <Card
-                key={key}
-                size="small"
-                title={key}
-                extra={(
-                  <Button
-                    danger
-                    size="small"
-                    disabled={disabled}
-                    onClick={() => {
-                      const nextObject = { ...objectValue }
-                      delete nextObject[key]
-                      onChange?.(nextObject)
-                    }}
-                  >
-                    删除
-                  </Button>
-                )}
-              >
-                <StructuredValueEditor
-                  value={childValue}
-                  sample={childSample}
-                  disabled={disabled}
-                  onChange={(nextValue) => {
-                    onChange?.({
-                      ...objectValue,
-                      [key]: nextValue,
-                    })
-                  }}
-                />
-              </Card>
-            )
-          }
-
-          if (typeof (childValue ?? childSample) === 'boolean') {
-            return (
-              <div key={key}>
-                <Space style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text>{key}</Text>
-                  <Button
-                    danger
-                    size="small"
-                    disabled={disabled}
-                    onClick={() => {
-                      const nextObject = { ...objectValue }
-                      delete nextObject[key]
-                      onChange?.(nextObject)
-                    }}
-                  >
-                    删除
-                  </Button>
-                </Space>
-                <Switch
-                  checked={Boolean(childValue)}
-                  disabled={disabled}
-                  onChange={(checked) => {
-                    onChange?.({
-                      ...objectValue,
-                      [key]: checked,
-                    })
-                  }}
-                />
-              </div>
-            )
-          }
-
-          if (typeof (childValue ?? childSample) === 'number') {
-            return (
-              <div key={key}>
-                <Space style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text>{key}</Text>
-                  <Button
-                    danger
-                    size="small"
-                    disabled={disabled}
-                    onClick={() => {
-                      const nextObject = { ...objectValue }
-                      delete nextObject[key]
-                      onChange?.(nextObject)
-                    }}
-                  >
-                    删除
-                  </Button>
-                </Space>
-                <InputNumber
-                  style={{ width: '100%' }}
-                  disabled={disabled}
-                  value={typeof childValue === 'number' ? childValue : undefined}
-                  onChange={(nextValue) => {
-                    onChange?.({
-                      ...objectValue,
-                      [key]: nextValue ?? 0,
-                    })
-                  }}
-                />
-              </div>
-            )
-          }
-
-          return (
-            <div key={key}>
-              <Space style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text>{key}</Text>
-                <Button
-                  danger
-                  size="small"
-                  disabled={disabled}
-                  onClick={() => {
-                    const nextObject = { ...objectValue }
-                    delete nextObject[key]
-                    onChange?.(nextObject)
-                  }}
-                >
-                  删除
-                </Button>
-              </Space>
-              <Input
-                disabled={disabled}
-                value={typeof childValue === 'string' ? childValue : String(childValue ?? '')}
-                onChange={(event) => {
-                  onChange?.({
-                    ...objectValue,
-                    [key]: event.target.value,
-                  })
-                }}
-              />
-            </div>
-          )
-        })}
-        <Card size="small" title="添加新项">
-          <Space direction="vertical" size={8} style={{ width: '100%' }}>
-            <Input
-              value={newKey}
-              disabled={disabled}
-              placeholder="键名（如：首页）"
-              onChange={(event) => setNewKey(event.target.value)}
-              onPressEnter={addObjectKey}
-            />
-            <Input
-              value={newValue}
-              disabled={disabled}
-              placeholder="值（如：/ || fas fa-home）"
-              onChange={(event) => setNewValue(event.target.value)}
-              onPressEnter={addObjectKey}
-            />
-            <Button
-              type="dashed"
-              block
-              disabled={disabled || !newKey.trim() || objectKeys.includes(newKey.trim())}
-              onClick={addObjectKey}
-            >
-              添加
-            </Button>
+    return <Space direction="vertical" size={12} style={{ width: '100%' }}>
+      {currentValue.map((item, index) => {
+        const itemMeta = getSchemaMetadataFromJson(schemaJson, `${fieldPath}.${index}`)
+        const option = itemMeta?.options?.find(option => option.value === item)
+        const title = isPlainObject(item) && typeof item.title === 'string' && item.title.trim()
+          ? item.title : option?.label || `第 ${index + 1} 项`
+        return <Card key={index} size="small" title={title} extra={
+          <Space size={4}>
+            <Button size="small" aria-label={`上移第 ${index + 1} 项`} disabled={disabled || index === 0} onClick={() => move(index, index - 1)}>↑</Button>
+            <Button size="small" aria-label={`下移第 ${index + 1} 项`} disabled={disabled || index === currentValue.length - 1} onClick={() => move(index, index + 1)}>↓</Button>
+            <Button danger size="small" disabled={disabled} onClick={() => setValue(currentValue.filter((_, i) => i !== index))}>删除</Button>
           </Space>
+        }>
+          <StructuredValueEditor value={item} sample={itemSample} disabled={disabled} fieldPath={`${fieldPath}.${index}`} schemaJson={schemaJson}
+            onChange={nextItem => setValue(currentValue.map((entry, i) => i === index ? nextItem : entry))} />
         </Card>
-      </Space>
-    )
+      })}
+      <Button type="dashed" disabled={disabled} onClick={() => setValue([...currentValue, buildEmptyValueFromSample(itemSample)])}>添加项</Button>
+    </Space>
   }
 
-  return (
-    <TextArea
-      rows={6}
-      disabled={disabled}
-      value={typeof currentValue === 'string' ? currentValue : String(currentValue ?? '')}
-      onChange={(event) => onChange?.(event.target.value)}
-    />
-  )
+  if (isPlainObject(currentValue)) {
+    const objectKeys = Object.keys(currentValue)
+    const addObjectKey = () => {
+      const key = newKey.trim()
+      if (!key || objectKeys.includes(key) || ['__proto__', 'constructor', 'prototype'].includes(key)) return
+      let parsed: unknown = newValue.trim()
+      if (parsed === 'true' || parsed === 'false') parsed = parsed === 'true'
+      else if (parsed !== '' && !Number.isNaN(Number(parsed))) parsed = Number(parsed)
+      setValue({...currentValue, [key]: parsed})
+      setNewKey(''); setNewValue('')
+    }
+    return <Space direction="vertical" size={16} style={{width: '100%'}}>
+      {objectKeys.map(key => {
+        const childPath = `${fieldPath}.${key}`
+        const childMeta = getSchemaMetadataFromJson(schemaJson, childPath)
+        if (childMeta?.hidden) return null
+        const label = childMeta?.label || key
+        return <div key={key}>
+          <Space style={{display: 'flex', justifyContent: 'space-between', marginBottom: 8}}>
+            <Text strong>{label}</Text>
+            {!metadata?.fixed && <Button danger size="small" disabled={disabled} onClick={() => {
+              const next = {...currentValue}; delete next[key]; setValue(next)
+            }}>删除</Button>}
+          </Space>
+          <StructuredValueEditor value={currentValue[key]} sample={isPlainObject(sample) ? sample[key] : undefined}
+            disabled={disabled} fieldPath={childPath} schemaJson={schemaJson}
+            onChange={next => setValue({...currentValue, [key]: next})} />
+          {childMeta?.description && <Text type="secondary" style={{display: 'block', marginTop: 4}}>{childMeta.description}</Text>}
+        </div>
+      })}
+      {!metadata?.fixed && <Card size="small" title="添加新项">
+        <Space direction="vertical" size={8} style={{width: '100%'}}>
+          <Input value={newKey} disabled={disabled} placeholder="键名" onChange={event => setNewKey(event.target.value)} onPressEnter={addObjectKey} />
+          <Input value={newValue} disabled={disabled} placeholder="值" onChange={event => setNewValue(event.target.value)} onPressEnter={addObjectKey} />
+          <Button type="dashed" block disabled={disabled || !newKey.trim() || objectKeys.includes(newKey.trim())} onClick={addObjectKey}>添加</Button>
+        </Space>
+      </Card>}
+    </Space>
+  }
+
+  const label = metadata?.label || fieldPath.split('.').pop() || '配置值'
+  if (metadata?.type === 'select' && metadata.options) {
+    // The DOM Select does not accept boolean values. Resolve its string key
+    // back to the schema value to preserve the original YAML type.
+    return <Select aria-label={label} style={{width: '100%'}} disabled={disabled} value={String(currentValue ?? '')}
+      options={metadata.options.map(option => ({value: String(option.value), label: option.label}))}
+      onChange={key => setValue(metadata.options?.find(option => String(option.value) === key)?.value ?? key)} />
+  }
+  if (typeof currentValue === 'boolean') return <Switch aria-label={label} disabled={disabled} checked={currentValue} onChange={setValue} />
+  if (typeof currentValue === 'number') return <InputNumber aria-label={label} disabled={disabled} style={{width: '100%'}} value={currentValue}
+    min={typeof metadata?.min === 'number' ? metadata.min : undefined} max={typeof metadata?.max === 'number' ? metadata.max : undefined} onChange={next => setValue(next ?? 0)} />
+  const text = String(currentValue ?? '')
+  if (metadata?.type === 'color') return <Space style={{width: '100%'}}>
+    <input aria-label={`${label}取色器`} type="color" disabled={disabled} value={/^#[\da-f]{6}$/i.test(text) ? text : '#000000'} onChange={event => setValue(event.target.value)} />
+    <Input aria-label={label} disabled={disabled} maxLength={7} value={text} onChange={event => setValue(event.target.value)} />
+  </Space>
+  if (metadata?.type === 'textarea' || text.includes('\n')) return <TextArea aria-label={label} disabled={disabled} autoSize={{minRows: 3, maxRows: 8}} value={text} onChange={event => setValue(event.target.value)} />
+  return <Input aria-label={label} disabled={disabled} placeholder={metadata?.placeholder} value={text} onChange={event => setValue(event.target.value)} />
 }
 
 interface FormModeProps {
@@ -636,7 +472,7 @@ const FormMode = forwardRef<FormModeRef, FormModeProps>(({
     if (isStructuredValue(structuredDefault)) {
       return (
         <Form.Item key={field.key} name={field.key} label={label} help={description}>
-          <StructuredValueEditor sample={structuredDefault} disabled={saving} />
+          <StructuredValueEditor sample={structuredDefault} disabled={saving} fieldPath={field.key} schemaJson={schemaJson} />
         </Form.Item>
       )
     }

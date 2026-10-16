@@ -17,6 +17,7 @@ import { getMarkdownIssue, preservesMarkdown } from './markdownSafety.mjs'
 import { createLocalImageResolver, getUploadedImageUrl } from './imageFiles.mjs'
 import { handleClipboardImagePaste } from './clipboardImages.mjs'
 import { blocksToMarkdownWithImageSizes } from './imageMarkdown.mjs'
+import { createBlockSnapshot } from './blockSnapshot.mjs'
 import './imageResize.less'
 import '@blocknote/mantine/style.css'
 
@@ -116,9 +117,10 @@ type Props = {
     resolveFileUrl?: (url: string) => Promise<string>
     onEditorReady?: (editor: any) => void
     mobileToolbarActions?: React.ReactNode
+    blockSnapshot?: ReturnType<typeof createBlockSnapshot>
 }
 
-export default function BlockEditor({ value, onChange, onReady, onFallback, uploadFile, resolveFileUrl, onEditorReady, mobileToolbarActions }: Props) {
+export default function BlockEditor({ value, onChange, onReady, onFallback, uploadFile, resolveFileUrl, onEditorReady, mobileToolbarActions, blockSnapshot }: Props) {
     const { theme, lang } = useContext(GlobalContext)
     const callbacks = useRef({ onChange, onReady, onFallback, uploadFile, resolveFileUrl, onEditorReady })
     callbacks.current = { onChange, onReady, onFallback, uploadFile, resolveFileUrl, onEditorReady }
@@ -143,13 +145,15 @@ export default function BlockEditor({ value, onChange, onReady, onFallback, uplo
         if (lastEditor.current === editor && lastValue.current === value) return
         hydrating.current = true
         try {
-            const blocks = editor.tryParseMarkdownToBlocks(value)
-            const issue = getMarkdownIssue(value)
-            if (issue || !preservesMarkdown(value, blocksToMarkdownWithImageSizes(editor, blocks))) {
+            const restored = blockSnapshot?.restore(value)
+            const blocks = restored || editor.tryParseMarkdownToBlocks(value)
+            const issue = restored ? '' : getMarkdownIssue(value)
+            if (!restored && (issue || !preservesMarkdown(value, blocksToMarkdownWithImageSizes(editor, blocks)))) {
                 callbacks.current.onFallback(issue || '块编辑暂时无法完整保留的 Markdown 结构')
                 return
             }
             editor.replaceBlocks(editor.document, blocks.length ? blocks : [{ type: 'paragraph' }])
+            blockSnapshot?.remember(value, editor.document)
             lastValue.current = value
             lastEditor.current = editor
             hydrating.current = false
@@ -158,7 +162,7 @@ export default function BlockEditor({ value, onChange, onReady, onFallback, uplo
         } catch {
             callbacks.current.onFallback('块编辑暂时无法完整保留的 Markdown 结构')
         }
-    }, [editor, value])
+    }, [editor, value, blockSnapshot])
 
     return <BlockNoteView
         editor={editor}
@@ -172,6 +176,7 @@ export default function BlockEditor({ value, onChange, onReady, onFallback, uplo
             if (hydrating.current) return
             const markdown = blocksToMarkdownWithImageSizes(editor)
             lastValue.current = markdown
+            blockSnapshot?.remember(markdown, editor.document)
             callbacks.current.onChange(markdown)
         }}
     >

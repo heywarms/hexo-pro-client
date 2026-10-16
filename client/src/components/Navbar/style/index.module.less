@@ -1,318 +1,34 @@
-@white: #ffffff;
-@text-color: #000000; // 假设明亮模式下的文本颜色为黑色
-
-.navbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 60px;
-    z-index: 700;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    box-sizing: border-box;
-    // box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-    background-color: #fff;
-    // border-bottom: 1px solid #f0f0f0;
+.navbar { position: fixed; inset: 0 0 auto; z-index: 700; display: flex; align-items: center; justify-content: space-between; height: var(--ui-topbar-height); padding: 0 24px; box-sizing: border-box; border-bottom: 1px solid var(--ui-line); background: var(--ui-paper); color: var(--ui-text); }
+.light { color-scheme: light; }
+.dark { color-scheme: dark; }
+.left, .right, .logo { display: flex; align-items: center; }
+.logo { gap: 10px; > svg { width: 29px; height: 31px; } }
+.logo-name { font-size: 17px; color: var(--ui-text); }
+.right { list-style: none; margin: 0; padding: 0; gap: 4px; li { display: flex; align-items: center; } li:last-child { margin-left: 8px; } }
+.customButtonHover { box-shadow: none; border-radius: 7px; }
+.navbar .customButtonHover { height: 32px; min-width: 32px; border: 1px solid transparent; color: var(--ui-muted); background: transparent; font-size: 14px;
+  &:hover { color: var(--ui-text); background: var(--ui-hover); border-color: transparent; }
+  &:global(.ant-btn-primary) { margin-inline: 8px; padding-inline: 12px; background: var(--ui-surface); border-color: var(--ui-border); color: var(--ui-text); }
 }
-
-// 暗黑模式下的图标颜色
-.dark {
-    color: @white;
+.accountButton:global(.ant-btn) { padding: 0; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; }
+.customAvatar { background: var(--ui-surface); color: var(--ui-muted); border: 1px solid var(--ui-border); }
+.searchListItemWapper { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.searchListItemLeft { min-width: 0; }
+.searchListTitlePrefix { display: none; }
+.searchModalListItemTitle, .searchListTitle { font-size: 14px; font-weight: 500; color: var(--ui-text); }
+.searchListItemRight { flex-shrink: 0; }
+.searchModalTag :global(.ant-tag) { margin: 0; font-size: 11px; }
+.searchModalListItem { cursor: pointer; border-radius: 7px; padding: 14px 12px !important; border-bottom: 1px solid var(--ui-line);
+  &:hover { background: var(--ui-hover); }
+  &:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: -2px; background: var(--ui-hover); }
 }
+.searchResultContext { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 6px; color: var(--ui-muted); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; max-height: 3.4em; p { margin: 0; } img { display: none; } }
+.searchResults { max-height: min(55vh, 520px); overflow-y: auto; margin-top: 12px; }
+.searchModalInput { min-height: 38px; border-radius: 7px; background: var(--ui-paper); color: var(--ui-text); border-color: var(--ui-border); }
+.createFields { display: grid; gap: 18px; padding-block: 12px; label { display: grid; gap: 7px; color: var(--ui-text); font-size: 13px; font-weight: 500; } }
+.mobileMenuDrawer :global(.ant-menu) { padding: 8px; }
+.mobileMenuActions { padding: 16px 16px 8px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid var(--ui-line); :global(.ant-btn) { min-height: 44px; } }
+.icon-empty { display: inline-block; width: 16px; }
+@media (max-width: 768px) { .navbar { padding-inline: 16px; } .navbar .customButtonHover { min-width: 44px; min-height: 44px; } .searchModalInput { min-height: 44px; font-size: 16px; } }
 
-// 明亮模式下的图标颜色
-.light {
-    color: @text-color;
-}
-
-
-.left,
-.right {
-    display: flex;
-    align-items: center;
-}
-
-.logo {
-    display: flex;
-    align-items: center;
-}
-
-// .logo-image {
-//     width: 33px; /* Set your desired width */
-//     height: auto; /* Maintain aspect ratio */
-// }
-
-.logo-name {
-    margin-left: 10px;
-    font-size: 20px;
-}
-
-// 明亮主题样式
-.navbar.light {
-    background-color: #fff;
-    color: #000;
-}
-
-.navbar.light .logo-name {
-    color: #000;
-}
-
-// 暗黑主题样式
-.navbar.dark {
-    background-color: #333;
-    color: #fff;
-}
-
-.navbar.dark .logo-name {
-    color: #fff;
-}
-
-.right {
-    display: flex;
-    list-style: none;
-    padding-right: 20px;
-
-    li {
-        padding: 0 8px;
-        display: flex;
-        align-items: center;
-    }
-
-    a {
-        text-decoration: none;
-        color: #293344;
-    }
-}
-
-.searchListItemWapper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    .searchListItemLeft {
-        display: flex;
-        align-items: center;
-
-        .searchListTitlePrefix {
-            width: 10px;
-            height: 10px;
-            background-color: #4CAF50;
-            border-radius: 50%;
-            margin-right: 8px;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-            transition: background-color 0.2s ease-in-out;
-            /* 增加颜色渐变效果 */
-        }
-
-
-        .searchListTitle {
-            font-weight: bold;
-            transition: color 0.3s ease-in-out, text-shadow 0.3s ease-in-out;
-            /* 添加颜色和阴影渐变效果 */
-        }
-
-        .searchListTitle:hover {
-            color: #0004ff;
-            /* 替换为更亮的青色 */
-            cursor: pointer;
-            text-shadow: 1px 1px 5px rgba(0, 255, 255, 0.7);
-            /* 添加柔和的文字阴影 */
-        }
-
-        .searchListTitlePrefix:hover {
-            background-color: #001aff;
-            /* 圆点背景色变化 */
-        }
-    }
-
-    .searchListItemRight {
-        display: flex;
-        align-items: center;
-    }
-
-}
-
-.searchModal {
-    padding: 20px;
-    border-radius: 10px;
-    background-color: var(--modal-bg);
-    /* Dynamic background color based on theme */
-    color: var(--modal-text);
-    /* Dynamic text color based on theme */
-}
-
-.searchModal.light {
-    --modal-bg: #f5f5f5;
-    --modal-text: #333;
-}
-
-.searchModal.dark {
-    --modal-bg: #1c1c1c;
-    --modal-text: #eaeaea;
-}
-
-.searchModalInput {
-    background-color: var(--input-bg);
-    color: var(--input-text);
-    border: 1px solid var(--input-border);
-    padding: 8px;
-    border-radius: 4px;
-    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-}
-
-/* 明亮主题 */
-.searchModalInput.light {
-    --input-bg: #fff;
-    --input-text: #333;
-    --input-border: #ccc;
-    --input-focus-border: #1890ff;
-    /* 改为更柔和的蓝色 */
-    --input-focus-shadow: rgba(24, 144, 255, 0.5);
-    /* 改为柔和的蓝色阴影 */
-}
-
-/* 暗黑主题 */
-.searchModalInput.dark {
-    --input-bg: #333;
-    --input-text: #eaeaea;
-    --input-border: #555;
-    --input-focus-border: #4c8ed9;
-    /* 改为更深的蓝色 */
-    --input-focus-shadow: rgba(76, 142, 217, 0.5);
-    /* 改为柔和的蓝色阴影 */
-}
-
-.searchModalInput:focus {
-    border-color: var(--input-focus-border);
-    box-shadow: 0 0 6px var(--input-focus-shadow);
-    outline: none;
-}
-
-.searchModalList {
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 10px;
-}
-
-.searchModalListItem {
-    padding: 10px 10px !important;
-    border-bottom: 1px solid var(--item-border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    transition: background-color 0.2s ease-in-out;
-}
-
-.searchModalListItem.light {
-    --item-border: #ddd;
-}
-
-.searchModalListItem.dark {
-    --item-border: #444;
-}
-
-.searchModalListItem:hover {
-    background-color: var(--item-hover-bg);
-}
-
-.searchModalListItem.light:hover {
-    --item-hover-bg: #f0f8ff;
-}
-
-.searchModalListItem.dark:hover {
-    --item-hover-bg: #222;
-}
-
-.searchModalListItemTitle {
-    font-size: 18px;
-    font-weight: 500;
-}
-
-.searchModalListItemTitle.light {
-    color: #333;
-}
-
-.searchModalListItemTitle.dark {
-    color: #eaeaea;
-}
-
-// 明亮模式下的按钮hover样式
-.customButtonHover.light {
-    background-color: rgb(242, 243, 245) !important;
-
-    &:hover {
-        background-color: darken(#ffffff, 10%) !important; // 使背景色变深
-        border-color: #d9d9d9 !important; // 保持边框颜色不变
-        color: #000000 !important; // 保持文字颜色不变
-    }
-
-    &:where {
-        border: 'none' !important; // 去掉边框
-        border-color: 'none' !important; // 去掉边框颜色
-    }
-}
-
-// 暗黑模式下的按钮hover样式
-.customButtonHover.dark {
-    background: #1a1a1a; // 透明
-
-    &:hover {
-        background-color: darken(#000000, 10%) !important; // 使背景色变深
-        border-color: #303030 !important; // 保持边框颜色不变
-        color: #ffffff !important; // 保持文字颜色不变
-    }
-
-    &:where {
-        border: 'none' !important; // 去掉边框
-        border-color: 'none' !important; // 去掉边框颜色
-    }
-}
-
-// 暗黑模式下的头像适配
-.customAvatar.dark img {
-    filter: brightness(0.7) sepia(0.2) hue-rotate(180deg); // 更暗的色调
-    transition: all 0.3s ease; // 平滑过渡
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); // 更柔和的阴影
-
-    &:hover {
-        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2); // 仅阴影轻微变化
-    }
-}
-
-/* 移动设备适配 */
-@media screen and (max-width: 768px) {
-    .navbar {
-        padding: 0 10px;
-    }
-
-    .logo-name {
-        display: none;
-    }
-
-    .right {
-        li {
-            margin-left: 5px;
-        }
-    }
-
-    .searchModalInput {
-        width: 100%;
-    }
-
-    .searchModalListItem {
-        padding: 8px 5px !important;
-    }
-
-    .mobileMenuActions {
-        padding: 16px 12px 0 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-}
-.navbar { border-bottom: 1px solid #e9edf3; }
-.navbar.dark { background: #1d1f23; border-bottom-color: #303641; }
+.searchResultContext mark { color: var(--ui-accent); background: var(--ui-accent-soft); border-radius: 2px; font-weight: 500; }

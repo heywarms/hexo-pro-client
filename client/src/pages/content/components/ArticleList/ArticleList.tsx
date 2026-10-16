@@ -10,7 +10,6 @@ import { GlobalContext } from "@/context"
 import { openDesktopLink } from "@/utils/desktopUtils"
 import IconLink from "@/assets/link.svg"
 import Iconllipsis from "@/assets/ellipsis.svg"
-import defaultCover from "@/assets/defaultCover.png"
 import styles from './style/index.module.less'
 import ArticleRow from '../ArticleRow/ArticleRow'
 import { requestNewPage, requestNewPost } from '@/utils/newPostEvent'
@@ -381,7 +380,7 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
 
     const renderRowActions = (item) => (
         <>
-            {!isMobile && <Button type="link" onClick={() => navigate(editPath(item))}>
+            {!isMobile && <Button type="text" onClick={() => navigate(editPath(item))}>
                 {!isPage && !published ? (t['content.articleList.btn.continueEditing'] || '继续编辑') : (t['content.articleList.btn.edit'] || '编辑')}
             </Button>
             }
@@ -401,12 +400,12 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
     const renderList = () => (
         <div className={styles['row-list']}>
             {postList.map(item => {
-                const file = isPage ? pagePathOf(item) : fileNameOf(item)
+                const file = isPage ? pagePathOf(item) : null
                 return (
                     <ArticleRow
                         key={item.documentId || item._id}
                         title={item.title}
-                        cover={item.cover}
+                        cover={showCover ? item.cover : undefined}
                         onClick={() => navigate(editPath(item))}
                         meta={`${t['content.articleList.row.updatedAt'] || '更新于'} ${formatShortTime(item.updated)}${file ? ` · ${file}` : ''}`}
                         actions={renderRowActions(item)}
@@ -514,36 +513,11 @@ function ArticleList({ published, isPage = false, showPublishStatus = true, show
                          xl={showCover ? 8 : 6}>
                         <Card
                             hoverable
-                            cover={
-                                showCover ? (
-                                    item.cover ? (
-                                        <Image
-                                            src={item.cover}
-                                            alt={item.title}
-                                            style={{
-                                                height: 190,
-                                                objectFit: 'cover',
-                                                borderBottom: `1px solid ${token.colorSplit}`
-                                            }}
-                                            preview={false}
-                                        />
-                                    ) : (
-                                        <Image
-                                            src={defaultCover}
-                                            alt="cover"
-                                            style={{
-                                                height: 190,
-                                                objectFit: 'cover',
-                                                borderBottom: `1px solid ${token.colorSplit}`,
-                                                background: token.colorFillTertiary
-                                            }}
-                                            preview={false}
-                                        />
-                                    )
-                                ) : null
-                            }
+                            cover={showCover && item.cover ? (
+                                <Image src={item.cover} alt="" height={170} style={{ objectFit: 'cover' }} preview={false} />
+                            ) : null}
                             style={{
-                                transition: 'all 0.3s',
+                                transition: 'border-color 160ms ease, box-shadow 160ms ease',
                                 borderRadius: 8,
                                 position: 'relative',
                                 // 当隐藏封面时，减少卡片的高度

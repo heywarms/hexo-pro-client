@@ -115,8 +115,9 @@ function desktopFixture() {
     electron: { app },
     path, 'fs-extra': {},
     child_process: { exec() {} }, util: { promisify },
-    './auth-manager': AuthManager, './hexo-server': HexoProServer,
+    './bundled-runtime': {}, './project-setup': {}, './auth-manager': AuthManager, './hexo-server-process': HexoProServer,
     './desktop-security': {}, 'electron-updater': { autoUpdater: null },
+    './desktop-updater': require('../hexo-pro-desktop/src/main/desktop-updater'),
     'iconv-lite': {}, 'node-fetch': () => {}
   }, currentModule);
   const Desktop = loaded.value;
@@ -177,4 +178,44 @@ test('desktop initialization propagates asynchronous window failures to its call
   assert.equal(calls.includes('createMenu'), false);
   assert.equal(calls.includes('setupAutoUpdater'), false);
   assert.equal(calls.includes('startStaticServer'), false);
+});
+
+test('quitting waits for cleanup once and resumes Electron quit events without forcing process exit', async () => {
+  const { desktop, app } = desktopFixture();
+  desktop.initialize();
+  const cleanup = deferred();
+  let cleanupCalls = 0, stopped = 0, completedQuit = 0;
+  desktop.cleanup = () => { cleanupCalls += 1; return cleanup.promise; };
+  desktop.updater = { stop: () => { stopped += 1; } };
+  app.exit = () => assert.fail('app.exit would bypass the update lifecycle');
+  app.quit = () => {
+    let prevented = false;
+    app.emit('before-quit', { preventDefault: () => { prevented = true; } });
+    if (!prevented) { app.emit('will-quit'); app.emit('quit'); completedQuit += 1; }
+  };
+  app.quit();
+  app.quit();
+  await nextTurn();
+  assert.equal(cleanupCalls, 1);
+  assert.equal(stopped, 1);
+  assert.equal(completedQuit, 0);
+  cleanup.resolve();
+  await nextTurn();
+  assert.equal(completedQuit, 1);
+  assert.equal(app.isQuittingApp, true);
+});
+
+test('pending editor saves cancel quitting before the server or updater is stopped', async () => {
+  const { desktop, app } = desktopFixture();
+  desktop.initialize();
+  desktop.mainWindow = { isDestroyed: () => false, webContents: { executeJavaScript: async () => false } };
+  desktop.cleanup = () => assert.fail('must keep the server running while saving');
+  desktop.updater = { stop: () => assert.fail('must keep checking after a canceled quit') };
+  let prevented = false;
+  app.emit('before-quit', { preventDefault: () => { prevented = true; } });
+  await nextTurn();
+  assert.equal(prevented, true);
+  assert.equal(app.isQuittingApp, false);
+  assert.equal(desktop.quitReady, false);
+  assert.equal(desktop.quitCleanup, null);
 });

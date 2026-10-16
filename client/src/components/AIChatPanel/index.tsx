@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect, useContext } from 'react'
 import { Input, Button, message, Spin } from 'antd'
-import { SendOutlined, CloseOutlined, CopyOutlined, ReloadOutlined, InsertRowLeftOutlined } from '@ant-design/icons'
+import { SendOutlined, CloseOutlined, CopyOutlined, ReloadOutlined, InsertRowLeftOutlined, EditOutlined } from '@ant-design/icons'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { GlobalContext } from '@/context'
-import AIPanalLogo from '@/assets/ai_panal_logo.svg'
 import useLocale from '@/hooks/useLocale'
 import { isAISConfigured } from '@/utils/aiSettings'
 import { aiChatStream } from '@/utils/aiService'
@@ -279,9 +278,7 @@ export default function AIChatPanel({ visible, onClose, onInsertContent }: AICha
             <div ref={contentRef} className={styles.content}>
                 {messages.length === 0 && (
                     <div className={styles.empty}>
-                        <div >
-                            <AIPanalLogo />
-                        </div>
+                        <div className={styles.emptyIcon} aria-hidden><EditOutlined /></div>
                         <div className={styles.emptyText}>{t['ai.title']}</div>
                         <div className={styles.quickPrompts}>
                             {quickPrompts.map(prompt => (

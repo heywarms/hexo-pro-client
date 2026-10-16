@@ -14,6 +14,7 @@ for (const scenario of [
   { name: 'GitHub source deployment', skipGenerate: true, targets: ['github'] },
   { name: 'GitHub sources alongside static hosting', skipGenerate: true, targets: ['github', 'edgeone-pages'] },
   { name: 'static GitHub deployment', skipGenerate: false, targets: ['github'] },
+  { name: 'first publication to an empty repository without global Git identity', skipGenerate: false, targets: ['github'], empty: true },
 ]) test(`${scenario.name} pushes the correct files through the real deployment API`, { timeout: 15000 }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'hexopro-deploy-api-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -33,7 +34,7 @@ for (const scenario of [
   await git(['add', '.']);
   await git(['-c', 'commit.gpgsign=false', 'commit', '-m', 'Initialize']);
   await git(['remote', 'add', 'origin', remote]);
-  await git(['push', 'origin', 'main']);
+  if (!scenario.empty) await git(['push', 'origin', 'main']);
   const raw = '---\r\ntitle: Keep\r\nplugin: value\r\n---\r\nBody';
   const identity = '{"version":1,"documents":[]}\n';
   await write('source/_posts/post.md', raw);
@@ -59,9 +60,9 @@ for (const scenario of [
         const i = safeArgs.indexOf('-m') + 1;
         safeArgs[i] = safeArgs[i].replace(/^"|"$/g, '');
       }
-      return spawn(command, safeArgs, { ...options, shell: false, env: { ...process.env,
-        GIT_AUTHOR_NAME: 'Hexo Pro Test', GIT_AUTHOR_EMAIL: 'test@example.invalid',
-        GIT_COMMITTER_NAME: 'Hexo Pro Test', GIT_COMMITTER_EMAIL: 'test@example.invalid' } });
+      const cleanGitEnv = { ...process.env, GIT_CONFIG_GLOBAL: path.join(root, 'no-global-config'), GIT_CONFIG_NOSYSTEM: '1' };
+      for (const key of ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL']) delete cleanGitEnv[key];
+      return spawn(command, safeArgs, { ...options, shell: false, env: cleanGitEnv });
     }
     assert.equal(command, 'npx');
     const child = new EventEmitter();
