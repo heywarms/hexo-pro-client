@@ -45,6 +45,45 @@ function loadCommonJs(filename, mocks, requireMain) {
 // Let the bootstrap's async error handler complete without relying on a delay.
 const nextTurn = () => new Promise(resolve => setImmediate(resolve));
 
+test('welcome page waits for its own server and never probes another instance on port 4000', async () => {
+  const html = fs.readFileSync(path.join(desktopDir, 'src/renderer/index.html'), 'utf8');
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const elements = new Map();
+  const requests = [];
+  const retries = [];
+  let serverUrl;
+  const context = {
+    URL, Date,
+    console: { log() {}, error() {} },
+    document: {
+      addEventListener() {},
+      getElementById(id) {
+        if (!elements.has(id)) elements.set(id, { style: { display: 'none' }, disabled: true });
+        return elements.get(id);
+      }
+    },
+    window: { electronAPI: {
+      getProjectInfo: async () => ({ serverUrl }),
+      onProjectLoaded() {}
+    } },
+    setTimeout: callback => retries.push(callback),
+    fetch: async url => {
+      requests.push(url);
+      return { ok: true, json: async () => ({ status: 'static-server', hasProject: false }) };
+    }
+  };
+  vm.runInNewContext(script + '\nnew HexoProDesktop();', context);
+  await nextTurn();
+  assert.deepEqual(requests, []);
+  assert.equal(retries.length, 1);
+  serverUrl = 'http://127.0.0.1:43871';
+  await retries.shift()();
+  await nextTurn();
+  assert.deepEqual(requests, ['http://127.0.0.1:43871/hexopro/api/desktop/status']);
+  assert.match(elements.get('status').innerHTML, /请选择一个 Hexo 项目/);
+  assert.equal(elements.get('btn-open-project').disabled, false);
+});
+
 test('desktop entry starts exactly once regardless of require.main in development or packaged mode', async () => {
   for (const requireMain of [undefined, { filename: '/electron/default_app.asar/main.js' }, currentModule]) {
     const calls = { construct: 0, initialize: 0, errors: [], exits: [] };
