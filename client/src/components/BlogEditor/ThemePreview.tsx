@@ -3,6 +3,7 @@ import { Alert, Button, Spin, Tooltip } from 'antd'
 import { CloseOutlined, ExpandOutlined, ReloadOutlined, ShrinkOutlined } from '@ant-design/icons'
 import { service } from '@/utils/api'
 import styles from './style.module.less'
+import { previewStorageScript } from './previewStorage.mjs'
 
 type Props = {
     id: string
@@ -20,7 +21,9 @@ function withAssetBase(html: string, baseURL: string) {
     document.querySelectorAll('base').forEach(base => base.remove())
     const base = document.createElement('base')
     base.href = baseURL
-    document.head.prepend(base)
+    const storage = document.createElement('script')
+    storage.textContent = previewStorageScript
+    document.head.prepend(base, storage)
     return '<!doctype html>\n' + document.documentElement.outerHTML
 }
 
