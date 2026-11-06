@@ -16,6 +16,7 @@ import DocumentTitle from '@/components/BlogEditor/DocumentTitle'
 import { getMarkdownIssue } from '@/components/BlogEditor/markdownSafety.mjs'
 import { createBlockSnapshot } from '@/components/BlogEditor/blockSnapshot.mjs'
 import { remarkSizedImages } from '@/components/BlogEditor/imageMarkdown.mjs'
+import { remarkTableLineBreaks } from '@/components/BlogEditor/tableMarkdown.mjs'
 import { WorkspaceStore } from './workspaceStore.mjs'
 import { isDirty, splitDocument, titleForDocument } from './documentModel.mjs'
 import { storage, credentials, exportFile, native } from './nativeStorage'
@@ -132,7 +133,7 @@ function DocumentEditor({ doc, saveStatus, onRun, onBack, onSettings, onRaw, onE
         </div>
         {view === 'preview' && <div className="document-scroll preview-scroll">
             <article className="prose"><h1 className="preview-document-title">{title}</h1><p className="preview-caption">正文预览 · 发布样式由博客主题决定</p>
-                <DocumentSourceContext.Provider value={doc.source}><ReactMarkdown remarkPlugins={[remarkGfm, remarkSizedImages]} skipHtml components={{ img: PreviewImage,
+                <DocumentSourceContext.Provider value={doc.source}><ReactMarkdown remarkPlugins={[remarkGfm, remarkSizedImages, remarkTableLineBreaks]} skipHtml components={{ img: PreviewImage,
                     a: props => <a {...props} target="_blank" rel="noopener noreferrer" /> }}>{body}</ReactMarkdown></DocumentSourceContext.Provider>
             </article>
         </div>}

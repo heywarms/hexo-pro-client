@@ -16,7 +16,7 @@ import { GlobalContext } from '@/context'
 import { getMarkdownIssue, preservesMarkdown } from './markdownSafety.mjs'
 import { createLocalImageResolver, getUploadedImageUrl } from './imageFiles.mjs'
 import { handleClipboardImagePaste } from './clipboardImages.mjs'
-import { blocksToMarkdownWithImageSizes } from './imageMarkdown.mjs'
+import { blocksToMarkdown, normalizeTableMarkdown } from './tableMarkdown.mjs'
 import { createBlockSnapshot } from './blockSnapshot.mjs'
 import './imageResize.less'
 import '@blocknote/mantine/style.css'
@@ -146,9 +146,9 @@ export default function BlockEditor({ value, onChange, onReady, onFallback, uplo
         hydrating.current = true
         try {
             const restored = blockSnapshot?.restore(value)
-            const blocks = restored || editor.tryParseMarkdownToBlocks(value)
+            const blocks = restored || editor.tryParseMarkdownToBlocks(normalizeTableMarkdown(value))
             const issue = restored ? '' : getMarkdownIssue(value)
-            if (!restored && (issue || !preservesMarkdown(value, blocksToMarkdownWithImageSizes(editor, blocks)))) {
+            if (!restored && (issue || !preservesMarkdown(value, blocksToMarkdown(editor, blocks)))) {
                 callbacks.current.onFallback(issue || '块编辑暂时无法完整保留的 Markdown 结构')
                 return
             }
@@ -174,7 +174,7 @@ export default function BlockEditor({ value, onChange, onReady, onFallback, uplo
         aria-label="文章块编辑器"
         onChange={() => {
             if (hydrating.current) return
-            const markdown = blocksToMarkdownWithImageSizes(editor)
+            const markdown = blocksToMarkdown(editor)
             lastValue.current = markdown
             blockSnapshot?.remember(markdown, editor.document)
             callbacks.current.onChange(markdown)
