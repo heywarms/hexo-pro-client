@@ -124,12 +124,44 @@ test('switches a running server repeatedly with fresh templates, filters, config
   assert.equal(JSON.parse(await fs.readFile(path.join(base, 'public/index.html'), 'utf8')).template, 'alpha');
 });
 
+test('saves the new theme to db.json so another process generating without clean excludes the old theme', async t => {
+  const { base, live, original } = await fixture(t, { watch: true });
+  await original.database.save();
+  const savedAssets = async () => JSON.parse(await fs.readFile(path.join(base, 'db.json'), 'utf8'))
+    .models.Asset.map(asset => asset._id);
+  assert.deepEqual(await savedAssets(), ['themes/next/source/alpha.css']);
+
+  await switchTheme(live, themes.beta);
+  assert.deepEqual(await savedAssets(), ['themes/fluid/source/beta.css']);
+
+  const terminal = new Hexo(base, { silent: true });
+  await terminal.init();
+  await terminal.call('generate', {});
+  await fs.access(path.join(base, 'public/beta.css'));
+  await assert.rejects(fs.access(path.join(base, 'public/alpha.css')));
+});
+
+test('keeps a committed switch when db.json cannot be written', async t => {
+  const { base, live, page } = await fixture(t);
+  await fs.mkdir(path.join(base, 'db.json'));
+
+  const result = await switchTheme(live, themes.beta);
+
+  assert.equal(result.success, true);
+  assert.equal(live.config.theme, 'fluid');
+  assert.equal((await page()).helper, 'beta');
+  assert.match(await fs.readFile(path.join(base, '_config.yml'), 'utf8'), /theme: fluid/);
+});
+
 test('rolls back a rendering failure and remains able to switch again', async t => {
   const { base, live, write, page } = await fixture(t, { watch: true });
+  await live.database.save();
+  const databaseBefore = await fs.readFile(path.join(base, 'db.json'), 'utf8');
   const configBefore = await fs.readFile(path.join(base, '_config.yml'), 'utf8');
   await fs.rm(path.join(base, '_config.fluid.yml'));
   await write('themes/fluid/layout/index.fixture', 'BROKEN_TEMPLATE');
   await assert.rejects(switchTheme(live, themes.beta), /Broken template/);
+  assert.equal(await fs.readFile(path.join(base, 'db.json'), 'utf8'), databaseBefore);
   assert.equal(await fs.readFile(path.join(base, '_config.yml'), 'utf8'), configBefore);
   await assert.rejects(fs.access(path.join(base, '_config.fluid.yml')));
   assert.equal(live.config.theme, 'next');
