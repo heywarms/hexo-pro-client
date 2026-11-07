@@ -43,12 +43,12 @@ test('maskSyncConfig hides GitHub personal access tokens', () => {
 
 test('buildAuthenticatedRepoUrl creates a temporary HTTPS URL without changing repository config', () => {
   assert.strictEqual(
-    buildAuthenticatedRepoUrl('wuzheng228/blog', 'gho_test'),
-    'https://x-access-token:gho_test@github.com/wuzheng228/blog.git'
+    buildAuthenticatedRepoUrl('heywarms/blog', 'gho_test'),
+    'https://x-access-token:gho_test@github.com/heywarms/blog.git'
   );
   assert.strictEqual(
-    buildAuthenticatedRepoUrl('https://github.com/wuzheng228/blog.git', 'gho_test'),
-    'https://x-access-token:gho_test@github.com/wuzheng228/blog.git'
+    buildAuthenticatedRepoUrl('https://github.com/heywarms/blog.git', 'gho_test'),
+    'https://x-access-token:gho_test@github.com/heywarms/blog.git'
   );
 });
 

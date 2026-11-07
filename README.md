@@ -22,7 +22,7 @@ hexo-pro-client/           # 主项目（React前端）
 ### 1. 克隆项目（包含子模块）
 
 ```bash
-git clone --recursive https://github.com/wuzheng228/hexo-pro-client.git
+git clone --recursive https://github.com/heywarms/hexo-pro-client.git
 cd hexo-pro-client
 ```
 
