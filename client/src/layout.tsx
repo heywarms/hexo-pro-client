@@ -275,16 +275,16 @@ export default function PageLayout() {
     return (
         <Layout className={styles.layout} data-theme={theme} data-flat-page={isFlatPage}>
             <Navbar contentPage={isCollectionPage} />
-            <Layout>
+            <Layout className={styles.frame}>
                 <Sider
                     className={styles['layout-sider']}
                     style={isMobile ? { display: 'none' } : undefined}
                     collapsed={collapsed}
                     collapsedWidth={isMobile ? 0 : 80}
-                    width={212}
+                    width={208}
                     theme={theme === 'dark' ? 'dark' : 'light'}
                 >
-                    <Button type="default" onClick={toggleCollapsed} className={styles['collapse-btn']} size='small' >
+                    <Button type="default" onClick={toggleCollapsed} className={styles['collapse-btn']} size='small' aria-label={collapsed ? (locale['layout.expandNavigation'] || '展开导航') : (locale['layout.collapseNavigation'] || '收起导航')} >
                         {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
                     </Button>
                     <Menu
@@ -302,8 +302,8 @@ export default function PageLayout() {
                 <Layout
                     className={styles['layout-content']}
                     style={{
-                        paddingLeft: isMobile || isFlatPage ? 0 : (collapsed ? 30 : 15),
-                        paddingRight: isMobile || isFlatPage ? 0 : (collapsed ? 30 : 15),
+                        paddingLeft: isMobile || isFlatPage ? 0 : (collapsed ? 24 : 16),
+                        paddingRight: isMobile || isFlatPage ? 0 : (collapsed ? 24 : 16),
                         paddingTop: isMobile || isFlatPage ? 0 : 15,
                         paddingBottom: isMobile || isFlatPage ? 0 : 15
                     }}

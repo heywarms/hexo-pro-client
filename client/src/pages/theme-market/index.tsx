@@ -212,14 +212,13 @@ const ThemeMarketPage: React.FC = () => {
             const status = statusMap[theme.id]
             const isInstalling = installing === theme.id
             return <article key={theme.id} className={styles.themeCard} data-current={Boolean(status?.isCurrent)}>
-              <div className={styles.themeIdentity} data-theme-id={theme.id} aria-hidden="true"><span>HEXO THEME</span><strong>{theme.name}</strong><AppstoreOutlined /></div>
               <div className={styles.themeInfo}>
                 <div className={styles.themeName}><h3>{theme.name}</h3><Tag bordered={false} color={status?.isCurrent ? 'blue' : 'default'}>{status?.isCurrent ? ui.currentTheme : status?.installed ? ui.installed : ui.available}</Tag></div>
                 <p className={styles.themeDesc}>{theme.description}</p>
                 <div className={styles.themeAuthor}>{t['theme.author']}: {theme.author}</div>
                 <div className={styles.themeActions}>
                   {!status?.installed ? <Button type="primary" icon={<DownloadOutlined />} loading={isInstalling} disabled={Boolean(installing) || !status} onClick={() => handleInstall(theme.id)}>{t['theme.install']}</Button> : <>
-                    {status.isCurrent ? <Button disabled icon={<CheckCircleOutlined />}>{t['theme.current']}</Button> : <Button type="primary" icon={<SwapOutlined />} loading={isInstalling} disabled={Boolean(installing)} onClick={() => handleSwitchTheme(theme.id)}>{t['theme.switch']}</Button>}
+                    {status.isCurrent ? <Button disabled icon={<CheckCircleOutlined />}>{t['theme.current']}</Button> : <Button icon={<SwapOutlined />} loading={isInstalling} disabled={Boolean(installing)} onClick={() => handleSwitchTheme(theme.id)}>{t['theme.switch']}</Button>}
                     <Button icon={<SettingOutlined />} onClick={() => openConfig(theme)} disabled={Boolean(installing)}>{t['theme.config']}</Button>
                   </>}
                 </div>

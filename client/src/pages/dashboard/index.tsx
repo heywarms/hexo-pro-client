@@ -46,6 +46,7 @@ type Distribution = {
 function PostCover({ src, featured = false }: { src?: string; featured?: boolean }) {
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [src])
+  if (!src || broken) return null
   return (
     <div className={[styles.cover, featured ? styles.featuredCover : ''].join(' ')}>
       {typeof src === 'string' && src && !broken

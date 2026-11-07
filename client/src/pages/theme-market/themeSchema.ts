@@ -156,7 +156,7 @@ export type SchemaJson = Record<string, SchemaMetadata>
  */
 export function getSchemaMetadataFromJson(schemaJson: SchemaJson | null | undefined, fullKey: string): SchemaMetadata | null {
   if (!schemaJson || typeof schemaJson !== 'object') return null
-  return schemaJson[fullKey] ?? null
+  return schemaJson[fullKey] ?? schemaJson[fullKey.split('.').map(part => /^\d+$/.test(part) ? '*' : part).join('.')] ?? null
 }
 
 /**
@@ -412,7 +412,7 @@ export function generateSchemaFromYaml(
     const displayFields = fields.slice(0, maxFieldsPerGroup)
     schema.push({
       key: groupKey,
-      label: keyToLabel(groupKey),
+      label: getSchemaMetadataFromJson(schemaJson, groupKey)?.label ?? keyToLabel(groupKey),
       fields: displayFields,
     })
   })
@@ -610,13 +610,9 @@ function formatYamlValue(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (typeof value === 'boolean') return String(value)
   if (typeof value === 'number') return String(value)
-  if (typeof value === 'string') {
-    if (value === '') return "''"
-    if (/[:#{}[\],&*?|>!%@`]/.test(value) || value.includes('\n')) {
-      return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
-    }
-    return value
-  }
+  // JSON-quoted strings are valid YAML scalars, including reserved words,
+  // dates, leading spaces and multiline text. Preserve the user's type.
+  if (typeof value === 'string') return JSON.stringify(value)
   return String(value)
 }
 

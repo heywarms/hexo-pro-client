@@ -7,6 +7,7 @@ import SourceEditor from './SourceEditor'
 import DocumentTitle from './DocumentTitle'
 import ThemePreview from './ThemePreview'
 import { getMarkdownIssue } from './markdownSafety.mjs'
+import { createBlockSnapshot } from './blockSnapshot.mjs'
 import styles from './style.module.less'
 
 type Props = {
@@ -27,8 +28,9 @@ export default function BlogEditor({ id, kind, value, title, onChange, onReady, 
     const [mode, setMode] = useState(() => localStorage.getItem('hexoProEditorEngine') === 'source' ? 'source' : 'blocks')
     const [preview, setPreview] = useState<'off' | 'split' | 'full'>('off')
     const [fallback, setFallback] = useState({ value: '', reason: '' })
+    const [blockSnapshot] = useState(createBlockSnapshot)
     const syntaxIssue = useMemo(() => getMarkdownIssue(value), [value])
-    const reason = syntaxIssue || (fallback.value === value ? fallback.reason : '')
+    const reason = blockSnapshot.matches(value) ? '' : syntaxIssue || (fallback.value === value ? fallback.reason : '')
     const activeMode = reason ? 'source' : mode
     const characterCount = useMemo(() => Array.from(value.replace(/\s/g, '')).length, [value])
     const handleFallback = useCallback((reason: string) => {
@@ -70,7 +72,7 @@ export default function BlogEditor({ id, kind, value, title, onChange, onReady, 
                             ? <><kbd>/</kbd><span>插入内容</span><span className={styles.hintDot}>·</span><span>拖动左侧手柄调整顺序</span></>
                             : '直接编辑 Markdown 源码'}</div>
                         {activeMode === 'blocks'
-                            ? <div className={styles.blockCanvas}><BlockEditor value={value} onChange={onChange} onReady={onReady} onFallback={handleFallback} /></div>
+                            ? <div className={styles.blockCanvas}><BlockEditor value={value} onChange={onChange} onReady={onReady} onFallback={handleFallback} blockSnapshot={blockSnapshot} /></div>
                             : <div className={styles.sourceCanvas}><SourceEditor value={value} onChange={onChange} onReady={onReady} /></div>}
                     </div>
                 </div>

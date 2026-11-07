@@ -38,7 +38,7 @@ export default function ArticleRow({ title, cover, meta, titleExtra, actions, on
                     onClick()
                 }
             }}>
-            <div className={styles.thumb}>
+            <div className={cover && !broken ? styles.thumb : styles.fileIcon}>
                 {cover && !broken
                     ? <img src={cover} alt="" loading="lazy" onError={() => setBroken(true)} />
                     : <FileTextOutlined className={styles.thumbIcon} aria-hidden />}

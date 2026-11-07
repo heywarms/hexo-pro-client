@@ -176,7 +176,7 @@ function desktopFixture() {
     shell: { openExternal: async url => opened.push(url) }
   };
   const loaded = loadIsolated(path.join(mainDir, 'main.js'), {
-    electron, 'electron-updater': { autoUpdater: null }, './hexo-server': {}, './auth-manager': {}
+    electron, 'electron-updater': { autoUpdater: null }, './hexo-server-process': {}, './auth-manager': {}
   });
   const desktop = Object.create(loaded.value.prototype);
   desktop.mainWindow = new FakeWindow();
@@ -393,7 +393,14 @@ test('main preload runs with only Electron in the sandbox and preserves its publ
   assert.equal(bridge.getAppVersion(), '2.1.0');
   await bridge.auth.saveToken(token);
   await bridge.auth.clearToken();
-  assert.deepEqual(calls, [['auth-save-token', token], ['auth-clear-token']]);
+  await bridge.updater.setAutoDownload(false);
+  assert.deepEqual(calls, [['auth-save-token', token], ['auth-clear-token'], ['updater-set-auto-download', false]]);
+  let updateState;
+  const stopUpdate = bridge.updater.onStatusChange(state => { updateState = state; });
+  ipcRenderer.emit('updater-status', { sender: 'must not leak' }, { status: 'downloaded' });
+  assert.deepEqual(updateState, { status: 'downloaded' });
+  stopUpdate();
+  assert.equal(ipcRenderer.listenerCount('updater-status'), 0);
   let payload;
   const unsubscribe = bridge.onProjectLoaded(value => { payload = value; });
   ipcRenderer.emit('project-loaded', { sender: 'must not leak' }, { projectPath: '/blog' });
@@ -476,4 +483,122 @@ test('copy-core requires the authentication and document-write security helpers 
   await assert.rejects(copy.copyHexoProCore({ sourceDir, targetDir }), error =>
     error.message.includes('auth_security.js') && error.message.includes('document_write.js'));
   await assert.rejects(fsp.access(targetDir));
+});
+
+test('GitHub project dialog isolates queries and submissions to its own top-level frame and cleans up on cancel', async () => {
+  const { desktop, windows, FakeWindow, ipcMain, event } = desktopFixture();
+  const queries = [];
+  const dialog = loadIsolated(path.join(mainDir, 'project-source-dialog.js'), {
+    electron: { BrowserWindow: FakeWindow, ipcMain },
+    './github-project': {
+      queryGitHub: async request => { queries.push(request); return { items: [] }; },
+      validateConnection: input => ({ repository: input.repository, branch: input.branch, githubToken: input.githubToken })
+    }
+  }).value;
+  const pending = dialog.showProjectSourceDialog(desktop.mainWindow);
+  const window = windows.at(-1);
+  assertSandbox(window);
+  ipcMain.emit('project-source-query', event(desktop.mainWindow), { id: 1, githubToken: 'test' });
+  ipcMain.emit('project-source-query', { ...event(window), senderFrame: { url: window.webContents.getURL() } }, { id: 2 });
+  assert.equal(queries.length, 0);
+  const reply = new Promise(resolve => window.webContents.once('project-source-response', resolve));
+  ipcMain.emit('project-source-query', event(window), { id: 3, action: 'repositories', githubToken: 'test' });
+  assert.equal((await reply).id, 3);
+  assert.equal(queries.length, 1);
+  ipcMain.emit('project-source-result', event(desktop.mainWindow), { success: false });
+  ipcMain.emit('project-source-result', event(window), { success: true, source: 'github', projectName: '../outside' });
+  assert.equal(window.isDestroyed(), false);
+  ipcMain.emit('project-source-result', event(window), { success: true, source: 'github', projectName: 'my-blog', repository: 'test/blog', branch: 'writing', githubToken: 'test' });
+  assert.equal((await pending).branch, 'writing');
+  assert.equal(ipcMain.listenerCount('project-source-query'), 0);
+  assert.equal(ipcMain.listenerCount('project-source-result'), 0);
+  const cancelled = dialog.showProjectSourceDialog(desktop.mainWindow);
+  ipcMain.emit('project-source-result', event(windows.at(-1)), { success: false });
+  assert.equal((await cancelled).success, false);
+  assert.equal(ipcMain.listenerCount('project-source-query'), 0);
+});
+
+test('new-project flow uses the bundled runtime, imports the chosen branch and never overwrites an existing directory', async () => {
+  const calls = [];
+  let selection = { success: true, source: 'github', projectName: 'blog', repository: 'test/blog', branch: 'writing', githubToken: 'test' };
+  let exists = false;
+  let runtimeChecks = 0;
+  const loaded = loadIsolated(path.join(mainDir, 'main.js'), {
+    electron: { dialog: {
+      showOpenDialog: async () => ({ canceled: false, filePaths: ['/parent'] }),
+      showMessageBox: async () => { calls.push('existing-directory'); },
+      showErrorBox: (...args) => { throw new Error(args.join(' ')); }
+    } },
+    'fs-extra': { pathExists: async () => exists },
+    'electron-updater': { autoUpdater: null }, './hexo-server-process': {}, './auth-manager': {},
+    './bundled-runtime': { getDesktopRuntime: () => ({ assertReady: () => { runtimeChecks += 1; } }) },
+    './project-source-dialog': { showProjectSourceDialog: async () => selection }
+  });
+  const desktop = Object.create(loaded.value.prototype);
+  desktop.checkSystemDependencies = async () => { throw new Error('GitHub import should not require global Hexo CLI'); };
+  desktop.createProjectWithProgress = async (...args) => calls.push(args);
+  await desktop.createNewProject();
+  assert.equal(calls[0][0], path.join('/parent', 'blog'));
+  assert.equal(calls[0][2].branch, 'writing');
+  assert.equal(desktop.isCreatingProject, false);
+  assert.equal(runtimeChecks, 1);
+  exists = true;
+  await desktop.createNewProject();
+  assert.equal(calls.at(-1), 'existing-directory');
+  assert.equal(calls.length, 2);
+  selection = { success: false };
+  await desktop.createNewProject();
+  assert.equal(calls.length, 2);
+});
+
+
+test('GitHub import forwards authenticated Git operations to the bundled runtime and preserves restored sources if opening fails', async () => {
+  const projectPath = '/parent/imported-blog';
+  const selection = { source: 'github', repository: 'test/blog', branch: 'writing', githubToken: 'test' };
+  const gitArgs = ['fetch', 'origin', 'writing'];
+  const gitOptions = { cwd: projectPath, env: { GIT_CONFIG_COUNT: '1', GIT_CONFIG_VALUE_0: 'test-auth-header' } };
+  let runtimeCalls = 0;
+  let opened = 0;
+  let closed = 0;
+  let failOpen = false;
+  const runtime = {
+    assertReady() {},
+    async run(command, args, options) {
+      runtimeCalls += 1;
+      assert.equal(command, 'git');
+      assert.equal(args, gitArgs);
+      assert.equal(options, gitOptions);
+      return { stdout: 'remote-head\n', stderr: '' };
+    }
+  };
+  const loaded = loadIsolated(path.join(mainDir, 'main.js'), {
+    electron: {}, './hexo-server-process': {}, './auth-manager': {},
+    './bundled-runtime': { getDesktopRuntime: () => runtime },
+    'electron-updater': { autoUpdater: null },
+    './github-project': {
+      async importGitHubProject(directory, input, options) {
+        assert.equal(directory, projectPath);
+        assert.equal(input, selection);
+        options.onProgress('restoring');
+        assert.equal(await options.cloudOptions.runCommand('git', gitArgs, gitOptions), 'remote-head');
+      }
+    }
+  });
+  const desktop = Object.create(loaded.value.prototype);
+  desktop.loadProject = async directory => {
+    assert.equal(directory, projectPath);
+    opened += 1;
+    if (failOpen) throw new Error('network unavailable');
+  };
+  const progressWindow = { isDestroyed: () => false, webContents: { send() {} }, close: () => { closed += 1; } };
+  await desktop.performProjectImport(projectPath, selection, progressWindow);
+  assert.equal(runtimeCalls, 1);
+  assert.equal(opened, 1);
+  assert.equal(closed, 1);
+  failOpen = true;
+  await assert.rejects(desktop.performProjectImport(projectPath, selection, progressWindow), error =>
+    error.message.includes(`源码已保留在 ${projectPath}`) && error.message.includes('network unavailable'));
+  assert.equal(runtimeCalls, 2);
+  assert.equal(opened, 2);
+  assert.equal(closed, 1);
 });

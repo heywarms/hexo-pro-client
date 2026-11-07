@@ -1,121 +1,5 @@
-.panel {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
-    border-left: 1px solid #e6ebf5;
-    color: #1f2430;
-
-    &.dark {
-        background: linear-gradient(180deg, #161b24 0%, #131820 100%);
-        border-left-color: #2e3646;
-        color: #e6ebf5;
-
-        .header {
-            border-bottom-color: #2e3646;
-            background: rgba(22, 27, 36, 0.92);
-        }
-
-        .footer {
-            border-top-color: #2e3646;
-            background: rgba(20, 25, 33, 0.92);
-        }
-
-        .message {
-            &.user .messageContent {
-                background: #1a66ff;
-            }
-
-            &.assistant .messageContent {
-                background: #1c2330;
-                border-color: #2f384b;
-                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-            }
-        }
-
-        .reasoning {
-            background: #182131;
-            border-color: #2f3b51;
-        }
-
-        .reasoningLabel {
-            color: #9ca9c3;
-        }
-
-        .reasoningToggle {
-            color: #8d9bb6;
-        }
-
-        .reasoningContent {
-            color: #b8c4db;
-        }
-
-        .quickPrompt {
-            background: #1c2432;
-            border-color: #2f384b;
-            color: #d5dff2;
-        }
-
-        .quickPrompt:hover {
-            border-color: #4f7edb;
-            color: #eaf1ff;
-        }
-
-        .markdown {
-            color: #dde6f8;
-
-            code {
-                background: #222c3d;
-            }
-
-            pre {
-                background: #1b2332;
-                border-color: #2d3648;
-            }
-
-            blockquote {
-                background: #172133;
-                border-left-color: #6f94e6;
-            }
-
-            table {
-                thead {
-                    background: #1a2334;
-                }
-
-                th,
-                td {
-                    border-color: #2f3a4e;
-                }
-            }
-        }
-
-        .actionBtn {
-            background: #1d2533;
-            border-color: #2f384b;
-            color: #d7e0f1;
-        }
-
-        .actionBtn:hover {
-            border-color: #5d85dd;
-            color: #ecf3ff;
-        }
-
-        .input {
-            :global(.ant-input) {
-                background: #1c2330;
-                border-color: #2f384b;
-                color: #e5ecf9;
-            }
-        }
-
-        .inputHint {
-            color: #8a97b2;
-        }
-    }
-}
+.panel { width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; background: var(--ui-paper); color: var(--ui-text); }
+.dark { color-scheme: dark; }
 
 .header {
     position: sticky;
@@ -125,9 +9,9 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 14px;
-    border-bottom: 1px solid #e9edf7;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(8px) saturate(130%);
+    border-bottom: 1px solid var(--ui-line);
+    background: var(--ui-paper);
+
 }
 
 .titleWrap {
@@ -138,14 +22,14 @@
 
 .title {
     font-size: 15px;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.2;
 }
 
 .subtitle {
     font-size: 12px;
     line-height: 1.2;
-    color: #8b94a8;
+    color: var(--ui-muted);
 }
 
 .closeBtn {
@@ -165,19 +49,19 @@
     align-items: center;
     justify-content: center;
     gap: 10px;
-    color: #8a93a6;
+    color: var(--ui-muted);
 }
 
 .emptyIcon {
-    width: 56px;
-    height: 56px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
 
     :global(svg) {
-        width: 100%;
-        height: 100%;
+        width: 20px;
+        height: 20px;
         display: block;
     }
 }
@@ -200,14 +84,14 @@
     justify-content: flex-start;
     text-align: left;
     border-radius: 8px;
-    background: #f6f8fd;
-    border-color: #e0e6f3;
-    color: #4c5871;
+    background: var(--ui-surface);
+    border-color: var(--ui-line);
+    color: var(--ui-muted);
 }
 
 .quickPrompt:hover {
-    border-color: #7da1e9;
-    color: #2e3b55;
+    border-color: var(--ui-accent);
+    color: var(--ui-text);
 }
 
 .message {
@@ -220,7 +104,7 @@
         .messageContent {
             max-width: 76%;
             padding: 10px 12px;
-            background: #1a66ff;
+            background: #3763cc;
             color: #fff;
             border-radius: 12px 12px 4px 12px;
         }
@@ -233,12 +117,12 @@
 
         .messageContent {
             width: 100%;
-            max-width: 92%;
+            max-width: 100%;
             padding: 12px 14px;
-            background: #ffffff;
-            border: 1px solid #e7ecf6;
+            background: var(--ui-paper);
+            border: 1px solid var(--ui-line);
             border-radius: 12px 12px 12px 4px;
-            box-shadow: 0 1px 4px rgba(13, 26, 45, 0.08);
+            box-shadow: none;
         }
     }
 }
@@ -252,8 +136,8 @@
     margin-bottom: 10px;
     padding: 8px 10px;
     border-radius: 8px;
-    border: 1px solid #e3e9f6;
-    background: #f7f9ff;
+    border: 1px solid var(--ui-line);
+    background: var(--ui-surface);
 }
 
 .reasoningHeader {
@@ -271,19 +155,19 @@
 
 .reasoningLabel {
     font-size: 12px;
-    color: #7d879b;
+    color: var(--ui-muted);
     font-weight: 500;
 }
 
 .reasoningToggle {
     font-size: 11px;
-    color: #8994ab;
+    color: var(--ui-muted);
 }
 
 .reasoningContent {
     margin-top: 8px;
     font-size: 13px;
-    color: #4f5a72;
+    color: var(--ui-muted);
     line-height: 1.7;
     white-space: pre-wrap;
     word-break: break-word;
@@ -298,7 +182,7 @@
 .markdown {
     font-size: 14px;
     line-height: 1.75;
-    color: #2b3448;
+    color: var(--ui-text);
     white-space: normal;
 
     p {
@@ -311,7 +195,7 @@
 
     code {
         padding: 2px 6px;
-        background: #eff3fb;
+        background: var(--ui-surface);
         border-radius: 6px;
         font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
         font-size: 12px;
@@ -320,9 +204,9 @@
     pre {
         margin: 10px 0;
         padding: 12px;
-        background: #f4f7fc;
+        background: var(--ui-surface);
         border-radius: 8px;
-        border: 1px solid #e2e8f4;
+        border: 1px solid var(--ui-line);
         overflow-x: auto;
 
         code {
@@ -353,14 +237,14 @@
     h6 {
         margin: 6px 0 8px;
         line-height: 1.4;
-        font-weight: 700;
+        font-weight: 600;
     }
 
     blockquote {
         margin: 8px 0;
         padding: 8px 12px;
-        border-left: 3px solid #4f7edd;
-        background: #f5f8ff;
+        border-left: 3px solid var(--ui-accent);
+        background: var(--ui-surface);
         border-radius: 0 8px 8px 0;
     }
 
@@ -372,12 +256,12 @@
     }
 
     thead {
-        background: #f6f8fc;
+        background: var(--ui-surface);
     }
 
     th,
     td {
-        border: 1px solid #e1e6f0;
+        border: 1px solid var(--ui-line);
         padding: 6px 8px;
         text-align: left;
         vertical-align: top;
@@ -397,14 +281,14 @@
 
 .actionBtn {
     border-radius: 8px;
-    border-color: #d9e2f1;
-    color: #425274;
-    background: #ffffff;
+    border-color: var(--ui-border);
+    color: var(--ui-muted);
+    background: var(--ui-paper);
 }
 
 .actionBtn:hover {
-    border-color: #7ca0e7;
-    color: #2c3d60;
+    border-color: var(--ui-accent);
+    color: var(--ui-text);
 }
 
 .footer {
@@ -414,9 +298,9 @@
     display: flex;
     gap: 8px;
     padding: 10px 12px 12px;
-    border-top: 1px solid #e9edf7;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(8px) saturate(130%);
+    border-top: 1px solid var(--ui-line);
+    background: var(--ui-paper);
+
 }
 
 .inputWrap {
@@ -429,7 +313,7 @@
 
     :global(.ant-input) {
         border-radius: 8px;
-        border-color: #d8e0ee;
+        border-color: var(--ui-border);
         padding: 8px 10px;
         line-height: 1.5;
     }
@@ -438,7 +322,7 @@
 .inputHint {
     margin-top: 6px;
     font-size: 11px;
-    color: #8e97ab;
+    color: var(--ui-muted);
     line-height: 1.2;
 }
 
@@ -473,3 +357,6 @@
         padding: 0 10px;
     }
 }
+
+.emptyIcon { background: var(--ui-surface); color: var(--ui-accent); border-radius: 9px; }
+.quickPrompt { min-height: 36px; height: auto; white-space: normal; line-height: 1.6; padding: 8px 10px; }

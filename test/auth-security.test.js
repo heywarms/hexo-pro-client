@@ -54,6 +54,9 @@ test('API mounts authentication even before registration and protects AI, schema
   for (const route of ['ai/chat', 'ai/settings', 'ai/settings/save', 'theme/schema/generate', 'desktop/save-token']) {
     assert.equal(registered.includes('/hexopro/api/' + route), false);
   }
+  for (const route of ['auth/security-question', 'auth/reset-password']) {
+    assert.equal(registered.includes('/hexopro/api/' + route), true);
+  }
 });
 
 test('registration stores salted credentials and immediately requires a valid session', async () => {
@@ -111,6 +114,20 @@ test('password changes and recovery revoke old sessions without rotating the ser
   const user = await security.query(f.db.userDb, 'findOne', { username: 'owner' });
   assert.match(user.password, /^scrypt\$/);
   assert.match(user.securityAnswer, /^scrypt\$/);
+});
+
+test('password recovery shows preset and custom questions without a session or exposing credentials', async () => {
+  const f = fixture();
+  for (const [username, securityQuestion] of [['preset', 'birth_city'], ['custom', '第一次旅行去了哪里？']]) {
+    await security.query(f.db.userDb, 'insert', { username, securityQuestion,
+      password: 'PRIVATE_PASSWORD', securityAnswer: 'PRIVATE_ANSWER', resetToken: 'PRIVATE_LEGACY_TOKEN' });
+    const result = await f.call('auth/security-question', { username });
+    assert.deepEqual(result.data, { code: 0, data: { securityQuestion } });
+  }
+  await security.query(f.db.userDb, 'insert', { username: 'unset', securityQuestion: '' });
+  assert.equal((await f.call('auth/security-question', { username: 'unset' })).data.code, 400);
+  assert.equal((await f.call('auth/security-question', { username: 'missing' })).data.code, 404);
+  assert.equal((await f.call('auth/security-question', { username: '' })).data.code, 400);
 });
 
 test('temporary accounts work with authenticated APIs and become protected formal accounts', async () => {

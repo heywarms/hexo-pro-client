@@ -1,22 +1,22 @@
 .editor-page {
-    --editor-paper: #fff;
-    --editor-text: #292c33;
-    --editor-muted: #68717e;
-    --editor-line: #e9ebef;
-    --editor-line-strong: #dce0e6;
-    --editor-surface: #f6f7f9;
+    --editor-paper: var(--ui-paper);
+    --editor-text: var(--ui-text);
+    --editor-muted: var(--ui-muted);
+    --editor-line: var(--ui-line);
+    --editor-line-strong: var(--ui-border);
+    --editor-surface: var(--ui-surface);
     display: flex;
     height: 100%;
     min-height: 0;
     min-width: 0;
     background: var(--editor-paper);
     &[data-theme='dark'] {
-        --editor-paper: #1d1f23;
-        --editor-text: #e6e8ed;
-        --editor-muted: #a2a8b3;
-        --editor-line: #30333a;
-        --editor-line-strong: #42464f;
-        --editor-surface: #17191d;
+        --editor-paper: var(--ui-paper);
+        --editor-text: var(--ui-text);
+        --editor-muted: var(--ui-muted);
+        --editor-line: var(--ui-line);
+        --editor-line-strong: var(--ui-border);
+        --editor-surface: var(--ui-surface);
     }
 }
 
@@ -56,7 +56,7 @@
 
 .ai-panel-wrap {
     height: 100%;
-    width: 380px;
+    width: 340px;
     flex-shrink: 0;
     border-left: 1px solid var(--editor-line);
     overflow: hidden;
@@ -73,10 +73,10 @@
     text-align: center;
     font-size: 14px;
     line-height: 1.7;
-    color: #8a93a6;
-    border: 1px dashed #d8deea;
+    color: var(--ui-muted);
+    border: 1px solid var(--ui-line);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--ui-surface);
     padding: 14px 16px;
     z-index: 3;
 }
@@ -84,7 +84,7 @@
 .skeleton {
     position: absolute;
     inset: 0;
-    background-color: #ffffff;
+    background-color: var(--ui-paper);
     z-index: 102;
     padding: 16px;
 }

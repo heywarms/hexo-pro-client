@@ -2,6 +2,7 @@ import React, { useContext, useRef, useState, useEffect } from "react"
 import { NEW_POST_EVENT } from "@/utils/newPostEvent"
 import _ from 'lodash'
 import styles from './style/index.module.less'
+import SearchExcerpt from './SearchExcerpt'
 import Logo from '@/assets/logo3.svg'
 import { Avatar, Button, Drawer, Dropdown, Input, List, Menu, MenuProps, Modal, Select, Tag, message, notification } from "antd"
 import { AppstoreOutlined, CloudUploadOutlined, CodeOutlined, DownOutlined, EditOutlined, FileTextOutlined, HomeOutlined, MenuOutlined, MoonOutlined, PictureOutlined, PoweroffOutlined, SearchOutlined, SettingOutlined, SunFilled, UserOutlined, GlobalOutlined } from "@ant-design/icons"
@@ -187,14 +188,14 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
             return
         }
         const categories = normalizeCategoryValues(selectedCategories)
-        
+
         // 检查标题是否已存在
         const exists = await checkTitleExists(title)
         if (exists) {
             // 如果存在，自动添加时间戳后缀
             const uniqueTitle = `${title}${Date.now()}`
             message.info('已存在同名文章，已自动添加区分字符')
-            
+
             service.post('/hexopro/api/posts/new', { title: uniqueTitle, categories }).then((res) => {
                 const post = res.data
                 post.date = parseDateTime(post.date)
@@ -248,7 +249,7 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
         if (!checkTitle(title)) {
             return
         }
-        
+
         try {
             // 检查标题是否已存在
             const exists = await checkPageTitleExists(title)
@@ -333,6 +334,7 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
     }
 
     const onClickSerchitem = (item) => {
+        setIsSearchModalOpen(false)
         if (!item.isPage) {
             navigate(`/post/${documentRouteId(item)}`)
         } else {
@@ -343,7 +345,7 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
     const buildSearchResultTag = (item) => {
         if (item.isPage) {
             return (
-                <Tag color="orange">{locale['navbar.search.tag.page']}</Tag>
+                <Tag color="default">{locale['navbar.search.tag.page']}</Tag>
             )
         } else if (item.isDraft) {
             return (
@@ -351,7 +353,7 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
             )
         } else {
             return (
-                <Tag color="#2db7f5">{locale['navbar.search.tag.post']}</Tag>
+                <Tag color="default">{locale['navbar.search.tag.post']}</Tag>
             )
         }
     }
@@ -379,7 +381,7 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
                     <Button
                         type="default"
                         shape="circle"
-                        icon={<MenuOutlined />}
+                        aria-label={locale['navbar.mobile.menu.title']} icon={<MenuOutlined />}
                         onClick={() => setDrawerVisible(true)}
                         className={`${styles.customButtonHover} ${styles[theme]}`}
                     />
@@ -387,18 +389,18 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
                 ) : (
                     <>
                          <li>
-                    <Button type="default" shape="circle" icon={<SearchOutlined />} onClick={onSearchClick} className={`${styles.customButtonHover} ${styles[theme]}`} />
+                    <Button type="default" shape="circle" aria-label={locale['navbar.search.modal.title']} title={locale['navbar.search.modal.title']} icon={<SearchOutlined />} onClick={onSearchClick} className={`${styles.customButtonHover} ${styles[theme]}`} />
                 </li>
                 <li>
-                    <Button type="default" shape="circle" icon={<GlobalOutlined />} onClick={handleVisitBlog} className={`${styles.customButtonHover} ${styles[theme]}`} title={locale['navbar.visit.blog'] || '访问博客前台'} />
+                    <Button type="default" shape="circle" aria-label={locale['navbar.visit.blog'] || '访问博客前台'} icon={<GlobalOutlined />} onClick={handleVisitBlog} className={`${styles.customButtonHover} ${styles[theme]}`} title={locale['navbar.visit.blog'] || '访问博客前台'} />
                 </li>
                 <li>
                     <Dropdown menu={{ items: langDropList, onClick: handleToggleLang }}>
-                        <Button type="default" shape="circle" icon={theme === 'dark' ? <IconLangLight /> : <IconLang />} className={`${styles.customButtonHover} ${styles[theme]}`} />
+                        <Button type="default" shape="circle" aria-label={locale['navbar.lang']} title={locale['navbar.lang']} icon={theme === 'dark' ? <IconLangLight /> : <IconLang />} className={`${styles.customButtonHover} ${styles[theme]}`} />
                     </Dropdown>
                 </li>
                 <li>
-                    <Button type="default" shape="circle" icon={theme === 'dark' ? <SunFilled /> : <MoonOutlined />} className={`${styles.customButtonHover} ${styles[theme]}`}
+                    <Button type="default" shape="circle" aria-label={theme === 'dark' ? locale['navbar.theme.light'] : locale['navbar.theme.dark']} title={theme === 'dark' ? locale['navbar.theme.light'] : locale['navbar.theme.dark']} icon={theme === 'dark' ? <SunFilled /> : <MoonOutlined />} className={`${styles.customButtonHover} ${styles[theme]}`}
                         onClick={theme === 'light' ? () => setTheme('dark') : () => setTheme('light')}
                     />
                 </li>
@@ -410,19 +412,19 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
                 {
                     userInfo && <li>
                         <Dropdown menu={{ items: settingDropList, onClick: handleLogout }}>
-                            <Avatar size={32} style={{ cursor: "pointer" }} className={`${styles.customAvatar} ${styles[theme]}`} src={userInfo.avatar}  icon={<UserOutlined />}/>
+                            <Button type="text" className={styles.accountButton} aria-label={locale['navbar.account'] || '账户菜单'}><Avatar size={28} style={{ cursor: "pointer" }} className={`${styles.customAvatar} ${styles[theme]}`} src={userInfo.avatar}  icon={<UserOutlined />}/></Button>
                         </Dropdown>
                     </li>
                 }
                     </>
                 )
-            
+
             }
-               
+
             </ul>
             <Modal
                 open={open}
-                title={locale['navbar.modal.title']}
+                title={target === 'Page' ? locale['navbar.create.page'] : locale['navbar.create.post']}
                 onCancel={onCancel}
                 footer={
                     [
@@ -431,18 +433,24 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
                     ]
                 }
             >
-                <Input placeholder={locale['navbar.modal.input.placeholder']} value={title} onChange={(e) => setTitle(e.target.value)} />
+                <div className={styles.createFields}>
+                <label>{locale['navbar.modal.title']}
+                    <Input autoFocus placeholder={locale['navbar.modal.input.placeholder']} value={title} onChange={(e) => setTitle(e.target.value)} />
+                </label>
                 {target === 'Post' && (
+                    <label>{locale['navbar.modal.category.label']}
                     <Select
                         mode="tags"
-                        style={{ width: '100%', marginTop: 12 }}
+                        style={{ width: '100%' }}
                         placeholder={locale['navbar.modal.category.placeholder'] || '请选择或输入分类'}
                         value={selectedCategories}
                         loading={categoryLoading}
                         onChange={(values) => setSelectedCategories(normalizeCategoryValues(values))}
                         options={availableCategories.map(item => ({ label: item, value: item }))}
                     />
+                    </label>
                 )}
+                </div>
             </Modal>
             <Modal
                 className={`${styles[theme]}`}
@@ -453,7 +461,7 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
                 onCancel={() => setIsSearchModalOpen(false)}
             >
                 <div>
-                    <Input value={searchValue} placeholder={locale['navbar.search.modal.input.placeholder']}
+                    <Input autoFocus value={searchValue} placeholder={locale['navbar.search.modal.input.placeholder']}
                         className={`${styles.searchModalInput} ${styles[theme]}`}
                         onChange={onSearchModalChange}
                         onInput={onSearchModalInput}
@@ -462,20 +470,21 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
                 <div>
                     <List
                         loading={searchLoading}
+                        className={styles.searchResults}
                         dataSource={searchInfoList}
                         renderItem={(item) => (
-                            <List.Item className={`${styles.searchModalListItem} ${styles[theme]}`} onClick={() => onClickSerchitem(item)}>
+                            <List.Item className={`${styles.searchModalListItem} ${styles[theme]}`} role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClickSerchitem(item) } }} onClick={() => onClickSerchitem(item)}>
                                 <div style={{ width: '100%' }}>
                                     <div className={styles.searchListItemWapper}>
                                         <div className={styles.searchListItemLeft}>
                                             <div className={styles.searchListTitlePrefix}></div>
-                                            <span className={`${styles.searchModalListItemTitle} ${styles.searchListTitle} ${styles[theme]}`} onClick={() => onClickSerchitem(item)}>{item.title}</span>
+                                            <span className={`${styles.searchModalListItemTitle} ${styles.searchListTitle} ${styles[theme]}`} >{item.title}</span>
                                         </div>
                                         <div className={cs(`${styles.searchModalTag} ${styles[theme]}`, styles.searchListItemRight)}>
                                             {buildSearchResultTag(item)}
                                         </div>
                                     </div>
-                                    <div dangerouslySetInnerHTML={{ __html: item.context }}></div>
+                                    <SearchExcerpt value={item.context} query={searchValue} />
                                 </div>
                             </List.Item>
                         )}
@@ -524,14 +533,14 @@ export default function Navbar({ style, contentPage = false }: NavbarProps) { //
                         </Dropdown>
                     }
                 </div>
-                <MenuItems />
+                <MenuItems onNavigate={() => setDrawerVisible(false)} />
             </Drawer>
         </div>
     )
 }
 
 // 从layout.tsx提取的菜单组件
-const MenuItems = () => {
+const MenuItems = ({ onNavigate }: { onNavigate: () => void }) => {
     const navigate = useNavigate()
     const location = useLocation()
     const locale = useLocale()
@@ -571,10 +580,12 @@ const MenuItems = () => {
                 .catch(() => undefined)
                 .finally(() => {
                     navigate(targetPath)
+                    onNavigate()
                 })
         } else {
             // 如果没有preload方法或找不到路由，直接导航
             navigate(targetPath)
+                    onNavigate()
         }
     }
 
@@ -596,7 +607,6 @@ interface RouteType {
     children?: RouteType[];
     component?: any;
 }
-379
 // 辅助函数
 const getFlatternRoute = (routes) => {
     const res = []
@@ -634,7 +644,7 @@ function getIconFromKey(key: string) {
             return <PictureOutlined />
         case 'content/yaml':
                 return <CodeOutlined />
-        case 'settings': 
+        case 'settings':
                 return <SettingIcon />
         default:
             return <div className={styles['icon-empty']}></div>

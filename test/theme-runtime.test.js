@@ -124,12 +124,44 @@ test('switches a running server repeatedly with fresh templates, filters, config
   assert.equal(JSON.parse(await fs.readFile(path.join(base, 'public/index.html'), 'utf8')).template, 'alpha');
 });
 
+test('saves the new theme to db.json so another process generating without clean excludes the old theme', async t => {
+  const { base, live, original } = await fixture(t, { watch: true });
+  await original.database.save();
+  const savedAssets = async () => JSON.parse(await fs.readFile(path.join(base, 'db.json'), 'utf8'))
+    .models.Asset.map(asset => asset._id);
+  assert.deepEqual(await savedAssets(), ['themes/next/source/alpha.css']);
+
+  await switchTheme(live, themes.beta);
+  assert.deepEqual(await savedAssets(), ['themes/fluid/source/beta.css']);
+
+  const terminal = new Hexo(base, { silent: true });
+  await terminal.init();
+  await terminal.call('generate', {});
+  await fs.access(path.join(base, 'public/beta.css'));
+  await assert.rejects(fs.access(path.join(base, 'public/alpha.css')));
+});
+
+test('keeps a committed switch when db.json cannot be written', async t => {
+  const { base, live, page } = await fixture(t);
+  await fs.mkdir(path.join(base, 'db.json'));
+
+  const result = await switchTheme(live, themes.beta);
+
+  assert.equal(result.success, true);
+  assert.equal(live.config.theme, 'fluid');
+  assert.equal((await page()).helper, 'beta');
+  assert.match(await fs.readFile(path.join(base, '_config.yml'), 'utf8'), /theme: fluid/);
+});
+
 test('rolls back a rendering failure and remains able to switch again', async t => {
   const { base, live, write, page } = await fixture(t, { watch: true });
+  await live.database.save();
+  const databaseBefore = await fs.readFile(path.join(base, 'db.json'), 'utf8');
   const configBefore = await fs.readFile(path.join(base, '_config.yml'), 'utf8');
   await fs.rm(path.join(base, '_config.fluid.yml'));
   await write('themes/fluid/layout/index.fixture', 'BROKEN_TEMPLATE');
   await assert.rejects(switchTheme(live, themes.beta), /Broken template/);
+  assert.equal(await fs.readFile(path.join(base, 'db.json'), 'utf8'), databaseBefore);
   assert.equal(await fs.readFile(path.join(base, '_config.yml'), 'utf8'), configBefore);
   await assert.rejects(fs.access(path.join(base, '_config.fluid.yml')));
   assert.equal(live.config.theme, 'next');
@@ -212,4 +244,60 @@ test('theme API reports the active theme and rejects unsupported methods and mis
   assert.equal((await request('theme/current', {})).data.name, 'fluid');
   assert.equal((await request('theme/installed', { query: { themeId: 'fluid' } })).data.isCurrent, true);
   assert.equal((await request('theme/installed', { query: { themeId: 'next' } })).data.isCurrent, false);
+});
+
+test('local themes have configuration, bundled schemas, snapshots and hot updates', async t => {
+  const {base, live, write, page} = await fixture(t);
+  await fs.cp(path.join(base, 'themes/next'), path.join(base, 'themes/cabinet'), {recursive:true});
+  await write('themes/cabinet/package.json', JSON.stringify({displayName:'Cabinet',description:'Local theme'}));
+  await write('themes/cabinet/_config.yml', 'marker: cabinet\nsitePriority: theme\nappearance:\n  accent: blue\n  toggle: true\n');
+  await write('themes/cabinet/_config.schema.json', JSON.stringify({appearance:{label:'外观'}}));
+  const handlers = {};
+  registerThemeApi(null, live, (name, handler) => { handlers[name] = handler; });
+  const request = (name, data = {}, method = 'GET') => new Promise((resolve, reject) => {
+    Promise.resolve(handlers[name]({method, query:data, body:data}, {
+      done: data => resolve({status:200, data}),
+      send: (status, message) => resolve({status, message}),
+    })).catch(reject);
+  });
+  const local = (await request('theme/list')).data.find(item => item.id === 'cabinet');
+  assert.equal(local.local, true);
+  assert.equal(local.name, 'Cabinet');
+  assert.equal((await request('theme/installed', {themeId:'cabinet'})).data.installed, true);
+  assert.match((await request('theme/config', {themeId:'cabinet'})).data.content, /marker: cabinet/);
+  assert.equal((await request('theme/schema', {themeId:'cabinet'})).data.schema.appearance.label, '外观');
+  await write('_config.cabinet.schema.json', JSON.stringify({appearance:{label:'自定义外观'}}));
+  assert.equal((await request('theme/schema', {themeId:'cabinet'})).data.schema.appearance.label, '自定义外观');
+  assert.equal((await request('theme/install', {themeId:'cabinet'}, 'POST')).status, 404);
+  assert.equal((await request('theme/switch', {themeId:'cabinet'}, 'POST')).status, 200);
+  assert.equal((await request('theme/current')).data.themeInfo.name, 'Cabinet');
+  assert.equal((await request('theme/current')).data.builtin, false);
+  const save = async content => {
+    const generated = once(live, 'generateAfter', {signal:AbortSignal.timeout(5000)});
+    const response = await request('theme/config/save', {themeId:'cabinet',content}, 'POST');
+    assert.equal(response.status, 200);
+    await generated;
+    return response;
+  };
+  await save('marker: edited\nsitePriority: override\nappearance:\n  toggle: false\ntemporary: present\n');
+  let output = await page();
+  assert.equal(output.theme.marker, 'edited');
+  assert.equal(output.theme.appearance.accent, 'blue');
+  assert.equal(output.theme.appearance.toggle, false);
+  assert.equal(output.theme.sitePriority, 'site');
+  await save('appearance:\n  accent: red\n');
+  output = await page();
+  assert.equal(output.theme.marker, 'cabinet');
+  assert.equal(output.theme.temporary, undefined);
+  assert.equal(output.theme.appearance.toggle, true);
+  assert.equal(output.theme.appearance.accent, 'red');
+  const snapshots = (await request('theme/config/snapshots', {themeId:'cabinet'})).data.snapshots;
+  assert.ok(snapshots.length >= 2);
+  assert.match(await fs.readFile(path.join(base, '_config.cabinet.yml'), 'utf8'), /accent: red/);
+  assert.match(await fs.readFile(path.join(base, 'themes/cabinet/_config.yml'), 'utf8'), /accent: blue/);
+  for (const themeId of ['../cabinet', '../../_config', '/tmp/theme', '..']) {
+    assert.equal((await request('theme/config', {themeId})).status, 404);
+    assert.equal((await request('theme/schema', {themeId})).status, 404);
+    assert.equal((await request('theme/config/save', {themeId,content:'a: b'}, 'POST')).status, 404);
+  }
 });

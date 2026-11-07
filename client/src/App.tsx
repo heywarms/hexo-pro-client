@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { createStore } from 'redux'
 import { Provider } from "react-redux"
 import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom'
 
+import { createAppTheme } from './style/theme'
+
 import rootReducer from './store'
 import Login from "./pages/login"
 import PageLayout from "./layout"
-import { Button, ConfigProvider, Space, theme as antTheme, message, notification } from "antd"
+import { Button, ConfigProvider, Space, message, notification } from "antd"
 
 import enUS from 'antd/locale/en_US'
 import zhCN from 'antd/locale/zh_CN'
@@ -15,6 +17,7 @@ import service from "./utils/api"
 import checkLogin from "./utils/checkLogin"
 import useStorage from "./utils/useStorage"
 import localePack from "./locale"
+import { DesktopUpdaterState, getDesktopUpdater, subscribeToUpdater } from './utils/desktopUpdater'
 
 
 const store = createStore(rootReducer)
@@ -58,17 +61,18 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
     const t = (localePack as any)[lang] || (localePack as any)['zh-CN'] || {}
 
     useEffect(() => {
-        const electronAPI = (window as any).electronAPI
-        const updaterApi = electronAPI?.updater
+        const updaterApi = getDesktopUpdater()
         if (!updaterApi || typeof updaterApi.onStatusChange !== 'function') {
             return
         }
 
         let availableVersionNotified: string | null = null
         let downloadedVersionNotified: string | null = null
+        const notificationKeys = new Set<string>()
 
         const showAvailableNotification = (version: string | null) => {
             const notificationKey = `desktop-update-available-${version || 'unknown'}`
+            notificationKeys.add(notificationKey)
             notification.open({
                 key: notificationKey,
                 placement: 'bottomLeft',
@@ -84,14 +88,12 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
                             type="primary"
                             size="small"
                             onClick={async () => {
+                                notification.destroy(notificationKey)
+                                navigate('/settings?tab=help')
                                 try {
                                     await updaterApi.downloadUpdate()
-                                    message.success(t['settings.update.toast.downloadStarting'] || '已开始下载更新')
-                                    navigate('/settings?tab=help')
                                 } catch (error: any) {
                                     message.error(error?.message || t['settings.update.toast.downloadFailed'] || '下载更新失败')
-                                } finally {
-                                    notification.destroy(notificationKey)
                                 }
                             }}
                         >
@@ -104,6 +106,7 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
 
         const showDownloadedNotification = (version: string | null) => {
             const notificationKey = `desktop-update-downloaded-${version || 'unknown'}`
+            notificationKeys.add(notificationKey)
             notification.open({
                 key: notificationKey,
                 placement: 'bottomLeft',
@@ -121,11 +124,10 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
                             danger
                             onClick={async () => {
                                 try {
-                                    await updaterApi.installUpdate()
+                                    const result = await updaterApi.installUpdate()
+                                    if (!result.canceled) notification.destroy(notificationKey)
                                 } catch (error: any) {
                                     message.error(error?.message || t['settings.update.toast.installFailed'] || '安装更新失败')
-                                } finally {
-                                    notification.destroy(notificationKey)
                                 }
                             }}
                         >
@@ -136,11 +138,38 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
             })
         }
 
-        const onUpdaterStateChange = (state: any = {}) => {
+        const onUpdaterStateChange = (state: DesktopUpdaterState) => {
             const status = state?.status
             const version = state?.availableVersion || null
 
-            if (status === 'update-available') {
+            if (status !== 'update-available') {
+                notification.destroy(`desktop-update-available-${availableVersionNotified || 'unknown'}`)
+            }
+            if (status === 'installing') {
+                notification.destroy(`desktop-update-downloaded-${downloadedVersionNotified || 'unknown'}`)
+            }
+
+            if (status === 'error' && (state.errorStage === 'download' || state.errorStage === 'install')) {
+                availableVersionNotified = null
+                downloadedVersionNotified = null
+                const notificationKey = 'desktop-update-error'
+                notificationKeys.add(notificationKey)
+                notification.error({
+                    key: notificationKey,
+                    placement: 'bottomLeft',
+                    duration: 0,
+                    message: t[state.errorStage === 'install' ? 'settings.update.installFailed' : 'settings.update.downloadFailed'],
+                    description: state.error,
+                    btn: <Button onClick={() => {
+                        notification.destroy(notificationKey)
+                        navigate('/settings?tab=help')
+                    }}>{t['settings.helpTitle'] || '帮助与更新'}</Button>,
+                })
+            } else if (status !== 'error') {
+                notification.destroy('desktop-update-error')
+            }
+
+            if (status === 'update-available' && !state.autoDownload) {
                 if (availableVersionNotified === version) {
                     return
                 }
@@ -158,13 +187,13 @@ const DesktopUpdateNotifier: React.FC<{ lang: string }> = ({ lang }) => {
             }
         }
 
-        updaterApi.getState?.().then(onUpdaterStateChange).catch(() => undefined)
-        const unsubscribe = updaterApi.onStatusChange(onUpdaterStateChange)
+        const unsubscribe = subscribeToUpdater(updaterApi, onUpdaterStateChange)
 
         return () => {
             if (typeof unsubscribe === 'function') {
                 unsubscribe()
             }
+            notificationKeys.forEach(key => notification.destroy(key))
         }
     }, [lang, navigate, t])
 
@@ -175,7 +204,7 @@ function App() {
 
     const [lang, setLang] = useStorage('hexo-pro-lang', 'zh-CN')
     const [theme, setTheme] = useStorage('hexo-pro-theme', 'light')
-    const [configProviderTheme, setConfigProviderTheme] = useState({})
+    const configProviderTheme = useMemo(() => createAppTheme(theme === 'dark'), [theme])
 
     function getLocale() {
         switch (lang) {
@@ -222,75 +251,7 @@ function App() {
 
 
     useEffect(() => {
-        if (theme === 'dark') {
-            setConfigProviderTheme({
-                algorithm: antTheme.darkAlgorithm,
-                token: {
-                    colorBgBase: '#141414',
-                    colorTextBase: '#ffffff',
-                    // Button specific styles
-                    colorPrimaryBg: '#1a1a1a',
-                    colorPrimaryText: '#ffffff',
-                    colorPrimaryBorder: '#2a2a2a',
-                    defaultShadow: 'none',
-                    primaryShadow: 'none',
-                    boxShadow: 'none', // 移除所有组件的阴影
-                    btnBoxShadow: 'none', // 移除按钮的阴影
-                    // 其他颜色和样式
-                },
-                components: {
-                    Button: {
-                        defaultShadow: 'none',
-                        primaryShadow: 'none',
-                        borderRadius: 'none',
-                        borderRadiusSM: 'none',
-                        borderRadiusLG: 'none',
-                        defaultBorderColor: 'none',
-                        defaultHoverBorderColor: 'none',
-                    },
-                    Menu: {
-                        itemColor: '#ffffff',
-                        itemHoverColor: '#1890ff',
-                        itemSelectedColor: '#ffffff',  // 修改选中项字体颜色为白色
-                        itemSelectedBg: '#1f1f1f',
-                        itemBg: '#141414',
-                        subMenuItemBg: '#141414',
-                        itemActiveBg: '#1f1f1f',
-                        activeBarWidth: 0,  // 移除选中项的蓝色指示条
-                        activeBarBorderWidth: 0
-                    }
-                }
-            })
-        } else {
-            setConfigProviderTheme({
-                algorithm: antTheme.defaultAlgorithm,
-                token: {
-                    colorBgBase: '#ffffff',
-                    colorTextBase: '#000000',
-                    // Button specific styles
-                    colorPrimaryBg: '#ffffff',
-                    colorPrimaryText: '#000000',
-                    colorPrimaryBorder: '#1890ff',
-                    defaultShadow: 'none',
-                    primaryShadow: 'none',
-                    boxShadow: 'none', // 移除所有组件的阴影
-                    btnBoxShadow: 'none' // 移除按钮的阴影
-
-                    // 其他颜色和样式
-                },
-                components: {
-                    Button: {
-                        defaultShadow: 'none',
-                        primaryShadow: 'none',
-                        borderRadius: 'none',
-                        borderRadiusSM: 'none',
-                        borderRadiusLG: 'none',
-                        defaultBorderColor: 'none',
-                        defaultHoverBorderColor: 'none',
-                    },
-                }
-            })
-        }
+        document.documentElement.dataset.theme = theme
     }, [theme])
 
     return (

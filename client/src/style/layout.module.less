@@ -1,153 +1,20 @@
-@nav-size-height: 60px;
-@layout-max-width: 1100px;
-
-.layout {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    /* 添加相对定位 */
-    overflow-x: hidden;
-    /* 防止水平滚动 */
-}
-
-.spin {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    min-height: calc(100vh - @nav-size-height);
-}
-
-.layout-sider {
-    position: fixed;
-    left: 0;
-    top: 60px;
-    height: calc(100vh - 100px);
-    /* 60px navbar + 40px footer */
-    z-index: 600;
-    // box-shadow: 1px 0 2px rgba(0, 0, 0, 0.08);
-    // border-right: 1px solid #f0f0f0;
-    overflow: hidden;
-    /* Prevent scrolling */
-    background-color: #fff;
-}
-
-.layout[data-theme='dark'] .layout-sider {
-    background: #17191d;
-    :global(.ant-menu) { background: #17191d; }
-    :global(.ant-menu-item), :global(.ant-menu-submenu-title) { color: #b4bbc7; }
-    :global(.ant-menu-item-selected) { background: #263247; color: #a7beff; }
-    .collapse-btn { background: #1d1f23; border-color: #42464f; color: #b4bbc7; }
-}
-
-.sub-layout-1 {
-    // padding-top: 60px;
-    height: calc(100vh - 100px);
-    overflow: hidden;
-}
-
-@media (max-width: 768px) {
-    .sub-layout-1 {
-        padding-top: 56px;
-        height: calc(100vh - 56px);
-    }
-}
-
-.layout-content {
-    width: calc(100%);
-    height: calc(100vh - 100px);
-    /* Use viewport height instead of percentage */
-    transition: padding-left 0.2s;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    margin: 0 auto;
-    position: relative;
-    top: 60px;
-}
-
-.layout-content-wrapper {
-    height: calc(100vh - 100px) !important;
-    /* 60px navbar + 40px footer */
-    box-sizing: border-box;
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    overflow: auto;
-}
-
-.collapse-btn {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-}
-
-.icon-empty {
-    width: 14px;
-    height: 14px;
-    display: inline-block;
-}
-
-/* 移动设备适配 */
-@media screen and (max-width: 768px) {
-    .layout-content {
-        padding-left: 0 !important;
-    }
-
-    .layout-content-wrapper {
-        padding: 10px;
-    }
-}
-
-/* 侧边栏分组标题与选中态 */
-.side-menu {
-    :global(.ant-menu-item-group-title) {
-        font-size: 12px;
-        padding-top: 12px;
-    }
-    :global(.ant-menu-item-divider) {
-        margin: 8px 16px;
-    }
-}
-
-/* Flat pages fill the space below the navbar without outer gutters or a footer. */
-.layout[data-flat-page='true'] {
-    .layout-content, .layout-content-wrapper, .layout-sider {
-        height: calc(100vh - 60px) !important;
-    }
-    .layout-content, .layout-content-wrapper { background: #fff; }
-    .layout-content-wrapper { padding: 0; }
-    &[data-theme='dark'] {
-        .layout-content, .layout-content-wrapper { background: #1d1f23; }
-    }
-}
-
+.layout { width: 100%; height: 100%; min-height: 0; background: var(--ui-paper); color: var(--ui-text); overflow: hidden; }
+.frame { height: 100%; min-height: 0; padding-top: var(--ui-topbar-height); background: var(--ui-paper); }
+.layout-sider { position: relative; height: 100%; min-height: 0; z-index: 600; overflow: hidden; background: var(--ui-canvas) !important; border-right: 1px solid var(--ui-line); }
+.layout-content { min-width: 0; min-height: 0; height: 100%; background: var(--ui-paper); }
+.layout-content-wrapper { display: flex; flex: 1; flex-direction: column; min-height: 0; height: 100%; overflow: auto; background: var(--ui-paper); :global(.ant-layout-content) { min-height: 100%; } }
+.collapse-btn { position: absolute; bottom: 14px; right: 14px; z-index: 2; width: 30px; color: var(--ui-muted); border-color: var(--ui-border); background: var(--ui-paper); }
+.spin { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - var(--ui-topbar-height)); }
+.icon-empty { display: inline-block; width: 16px; height: 16px; }
 .side-menu:global(.ant-menu) {
-    padding: 12px 12px 56px;
-    border-inline-end: 1px solid #e9edf3;
-    overflow-y: auto;
-    font-size: 15px;
-    :global(.ant-menu-item), :global(.ant-menu-submenu-title) {
-        width: 100%;
-        height: 44px;
-        line-height: 44px;
-        margin: 4px 0;
-        padding-inline: 14px !important;
-        border-radius: 8px;
-    }
-    :global(.ant-menu-item-icon) { font-size: 20px; }
-    :global(.ant-menu-item-group-title) {
-        color: #7c859b;
-        font-size: 13px;
-        padding: 20px 12px 8px;
-    }
-    :global(.ant-menu-sub) { background: transparent; }
-    :global(.ant-menu-sub .ant-menu-item) { padding-inline-start: 54px !important; height: 40px; line-height: 40px; }
-    :global(.ant-menu-item-selected) { color: #1677ff; background: #eaf4ff; }
-    :global(.ant-menu-item-divider) { margin: 24px 8px 0; }
+    padding: 16px 12px 60px; border-inline-end: 0; overflow-y: auto; background: transparent; font-size: 13px;
+    :global(.ant-menu-item), :global(.ant-menu-submenu-title) { width: 100%; height: 38px; line-height: 38px; margin: 2px 0; padding-inline: 12px !important; border-radius: 7px; }
+    :global(.ant-menu-item-icon) { font-size: 17px; min-width: 17px; }
+    :global(.ant-menu-item-group-title) { color: var(--ui-subtle); font-size: 11px; font-weight: 500; padding: 24px 12px 8px; }
+    :global(.ant-menu-sub) { background: transparent !important; }
+    :global(.ant-menu-sub .ant-menu-item) { padding-inline-start: 39px !important; height: 34px; line-height: 34px; font-size: 13px; }
+    :global(.ant-menu-item-selected) { font-weight: 500; background: var(--ui-accent-soft); color: var(--ui-accent); }
+    :global(.ant-menu-item-divider) { margin: 18px 10px 0; border-color: var(--ui-line); }
 }
-.layout[data-theme='dark'] .side-menu:global(.ant-menu) { border-color: #303641; }
-.side-menu:global(.ant-menu-inline-collapsed) {
-    padding-inline: 8px;
-    :global(.ant-menu-item), :global(.ant-menu-submenu-title) { padding-inline: 22px !important; }
-}
+.side-menu:global(.ant-menu-inline-collapsed) { padding-inline: 8px; :global(.ant-menu-item), :global(.ant-menu-submenu-title) { padding-inline: 22px !important; } :global(.ant-menu-item-group-title) { padding-inline: 0; text-align: center; font-size: 10px; } }
+@media (max-width: 768px) { .layout-content-wrapper { padding: 0; } }

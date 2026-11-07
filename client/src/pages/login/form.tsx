@@ -11,15 +11,44 @@ type PageStatus = 'checking' | 'first-use' | 'token-login' | 'login' | 'forgot-p
 
 export default function LoginForm() {
     const formRef = useRef(null)
-    const resetFormRef = useRef(null)
+    const [resetForm] = Form.useForm()
+    const resetUsername = (Form.useWatch('username', resetForm) || '').trim()
+    const [loginUsername, setLoginUsername] = useState('')
     const [errorMessage, setErrorMessage] = useState('')
     const [loading, setLoading] = useState(false)
-    const [fetchingSecurityQuestion, setFetchingSecurityQuestion] = useState(false)
-    const [securityQuestion, setSecurityQuestion] = useState('')
+    const [questionResult, setQuestionResult] = useState({ username: '', question: '', error: '', loading: false })
+    const [questionRetry, setQuestionRetry] = useState(0)
     const [pageStatus, setPageStatus] = useState<PageStatus>('checking') // 初始状态为 checking
     useEffect(() => { localStorage.removeItem('loginParams') }, [])
     const t = useLocale()
     const navigate = useNavigate()
+    // Never show a previous account's question while the next lookup is pending.
+    const questionState = questionResult.username === resetUsername
+        ? questionResult : { question: '', error: '', loading: !!resetUsername }
+    const questionFetchError = t['login.form.securityQuestionFetchFailed']
+
+    useEffect(() => {
+        if (pageStatus !== 'forgot-password' || !resetUsername) {
+            setQuestionResult({ username: '', question: '', error: '', loading: false })
+            return
+        }
+        let active = true
+        setQuestionResult({ username: resetUsername, question: '', error: '', loading: true })
+        const timer = window.setTimeout(async () => {
+            try {
+                const res = await service.post('/hexopro/api/auth/security-question', { username: resetUsername })
+                if (!active) return
+                const question = res.data.code === 0 ? res.data.data?.securityQuestion : ''
+                setQuestionResult({ username: resetUsername, question: question || '',
+                    error: question ? '' : res.data.msg || questionFetchError, loading: false })
+            } catch (error) {
+                if (!active) return
+                setQuestionResult({ username: resetUsername, question: '', loading: false,
+                    error: error.response?.data?.msg || error.message || questionFetchError })
+            }
+        }, 350)
+        return () => { active = false; window.clearTimeout(timer) }
+    }, [pageStatus, resetUsername, questionRetry, questionFetchError])
 
     const formatSecurityQuestion = useCallback((question: string) => {
         const questionMap = {
@@ -204,51 +233,27 @@ export default function LoginForm() {
     // 切换到忘记密码
     const handleShowForgotPassword = () => {
         setErrorMessage('')
-        setSecurityQuestion('')
+        const username = formRef.current?.getFieldValue('username') || ''
+        setLoginUsername(username)
+        resetForm.resetFields()
+        resetForm.setFieldsValue({ username })
         setPageStatus('forgot-password')
     }
 
     // 返回登录
     const handleBackToLogin = () => {
         setErrorMessage('')
-        setSecurityQuestion('')
+        setLoginUsername(resetForm.getFieldValue('username') || '')
         setPageStatus('login')
-    }
-
-    const handleForgotUsernameBlur = () => {
-        const username = resetFormRef.current?.getFieldValue?.('username')?.trim()
-        if (!username) {
-            setSecurityQuestion('')
-            return
-        }
-
-        setFetchingSecurityQuestion(true)
-        setErrorMessage('')
-        service.post('/hexopro/api/auth/security-question', { username })
-            .then((res) => {
-                if (res.data.code === 0 && res.data.data?.securityQuestion) {
-                    setSecurityQuestion(res.data.data.securityQuestion)
-                } else {
-                    setSecurityQuestion('')
-                    setErrorMessage(res.data.msg || t['login.form.securityQuestionFetchFailed'])
-                }
-            })
-            .catch((err) => {
-                setSecurityQuestion('')
-                setErrorMessage(err.response?.data?.msg || err.message || t['login.form.securityQuestionFetchFailed'])
-            })
-            .finally(() => {
-                setFetchingSecurityQuestion(false)
-            })
     }
 
     // 处理重置密码
     const handleResetPassword = () => {
-        resetFormRef.current.validateFields()
+        resetForm.validateFields()
             .then((values) => {
                 setLoading(true)
                 service.post('/hexopro/api/auth/reset-password', {
-                    username: values.username,
+                    username: values.username.trim(),
                     securityAnswer: values.securityAnswer,
                     newPassword: values.newPassword,
                     confirmPassword: values.confirmPassword,
@@ -339,32 +344,45 @@ export default function LoginForm() {
                     />
                 }
                 <Form
-                    ref={resetFormRef}
+                    key="password-recovery"
+                    form={resetForm}
+                    preserve={false}
                     layout="vertical"
+                    onValuesChange={changed => {
+                        if ('username' in changed) {
+                            resetForm.setFieldValue('securityAnswer', undefined)
+                            setErrorMessage('')
+                        }
+                    }}
                 >
                     <Form.Item
                         name="username"
                         label={t['login.form.username']}
-                        rules={[{ required: true, message: t['settings.usernameRequired'] }]}
+                        rules={[{ required: true, whitespace: true, message: t['settings.usernameRequired'] }]}
                     >
-                        <Input prefix={<UserOutlined />} onBlur={handleForgotUsernameBlur} />
+                        <Input prefix={<UserOutlined />} autoComplete="username" />
                     </Form.Item>
-                    {(fetchingSecurityQuestion || securityQuestion) && (
-                        <Alert
-                            type="info"
-                            showIcon
-                            style={{ marginBottom: 16 }}
-                            message={fetchingSecurityQuestion
-                                ? t['login.form.securityQuestionLoading']
-                                : `${t['login.form.securityQuestionLabel']}${formatSecurityQuestion(securityQuestion)}`}
-                        />
-                    )}
+                    <Alert
+                        id="reset-security-question"
+                        role="status"
+                        aria-live="polite"
+                        aria-busy={questionState.loading}
+                        type={questionState.error ? 'warning' : 'info'}
+                        showIcon
+                        style={{ marginBottom: 16 }}
+                        message={!resetUsername ? t['login.form.securityQuestionUsernameHint']
+                            : questionState.loading ? t['login.form.securityQuestionLoading']
+                                : questionState.error || `${t['login.form.securityQuestionLabel']}${formatSecurityQuestion(questionState.question)}`}
+                        action={questionState.error && <Button size="small" onClick={() => setQuestionRetry(value => value + 1)}>
+                            {t['login.form.securityQuestionRetry']}
+                        </Button>}
+                    />
                     <Form.Item
                         name="securityAnswer"
                         label={t['login.form.securityAnswer']}
                         rules={[{ required: true, message: t['login.form.securityAnswerRequired'] }]}
                     >
-                        <Input prefix={<LockOutlined />} placeholder={t['login.form.securityAnswerPlaceholder']} />
+                        <Input prefix={<LockOutlined />} aria-describedby="reset-security-question" placeholder={t['login.form.securityAnswerPlaceholder']} />
                     </Form.Item>
                     <Form.Item
                         name="newPassword"
@@ -421,9 +439,11 @@ export default function LoginForm() {
                 />
             }
             <Form
+                key="login"
                 onFinishFailed={() => message.error('Submit failed!')}
                 ref={formRef}
                 layout="vertical"
+                initialValues={{ username: loginUsername }}
             >
                 <Form.Item
                     rules={[{ required: true }]} // 添加了 required 规则的显式消息
